@@ -1,5 +1,5 @@
 {
-  "$comment": "Flat two-tone map in ink, from Gable's `warm` theme, dark scheme (gable app/src/lib/sites/theme-presets.json, 2026-10-06): paper #14110e, tint #211c17, line #352e27, line-strong #8f8274, ink-2 #b8aa9b, ink #f3ece3, accent #ef8f5e. Gable owns presets; this file is the starting point.",
+  "$comment": "Flat two-tone map in ink, from Gable's `warm` theme, dark scheme (gable app/src/lib/sites/theme-presets.json, 2026-10-06): paper #14110e, tint #211c17, line #352e27, line-strong #8f8274, ink-2 #b8aa9b, ink #f3ece3, accent #ef8f5e. Gable owns presets; this file is the starting point. labels (2026-10-06): names in ink-2 #b8aa9b on an ink #14110e halo and plaque; classes as paper-warm.",
   "name": "ink",
   "description": "Light roads on warm ink; water and buildings as quiet tints.",
   "ui": { "bg": "#14110e", "text": "#f3ece3" },
@@ -27,5 +27,16 @@
     "marker": { "fill": "#ef8f5e", "stroke": "#14110e" },
     "label": { "background": "#f3ece3", "text": "#14110e" },
     "attribution": { "color": "#b8aa9b", "backdrop": "#14110e" }
+  },
+  "labels": {
+    "roads": { "classes": ["motorway", "trunk", "primary", "secondary", "tertiary"], "minZoom": 13 },
+    "places": { "kinds": ["town", "suburb"], "maxCount": 2, "size": 10, "letterSpacing": 0.18, "transform": "uppercase" },
+    "font": ["Noto Sans Regular"],
+    "size": 11,
+    "letterSpacing": 0.08,
+    "transform": "none",
+    "color": "#b8aa9b",
+    "halo": { "color": "#14110e", "width": 1.2 },
+    "spacing": 700
   }
 }

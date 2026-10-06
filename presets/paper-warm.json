@@ -1,5 +1,5 @@
 {
-  "$comment": "Flat two-tone map on paper, from Gable's `warm` theme, light scheme (gable app/src/lib/sites/theme-presets.json, 2026-10-06): paper #faf6f0, tint #f2eadf, line #e4d9ca, line-strong #8c7d6f, ink-2 #5c5045, ink #1c1712, accent #a3441c, on-panel #fbf6ef. Gable owns presets; this file is the starting point.",
+  "$comment": "Flat two-tone map on paper, from Gable's `warm` theme, light scheme (gable app/src/lib/sites/theme-presets.json, 2026-10-06): paper #faf6f0, tint #f2eadf, line #e4d9ca, line-strong #8c7d6f, ink-2 #5c5045, ink #1c1712, accent #a3441c, on-panel #fbf6ef. Gable owns presets; this file is the starting point. labels (2026-10-06): road and place names in ink-2 #5c5045 (quieter than the ink #1c1712 of the major roads, darker than line-strong #8c7d6f so 11 px stays legible) with a paper #faf6f0 halo and plaque; tertiary is included because Mo i Rana's main streets (Kirkegata, Elias Blix' gate, Ole Tobias Olsens gate) are tertiary in OSM.",
   "name": "paper-warm",
   "description": "Ink roads on warm paper; water and buildings as quiet tints.",
   "ui": { "bg": "#faf6f0", "text": "#1c1712" },
@@ -27,5 +27,16 @@
     "marker": { "fill": "#a3441c", "stroke": "#faf6f0" },
     "label": { "background": "#1c1712", "text": "#fbf6ef" },
     "attribution": { "color": "#5c5045", "backdrop": "#faf6f0" }
+  },
+  "labels": {
+    "roads": { "classes": ["motorway", "trunk", "primary", "secondary", "tertiary"], "minZoom": 13 },
+    "places": { "kinds": ["town", "suburb"], "maxCount": 2, "size": 10, "letterSpacing": 0.18, "transform": "uppercase" },
+    "font": ["Noto Sans Regular"],
+    "size": 11,
+    "letterSpacing": 0.08,
+    "transform": "none",
+    "color": "#5c5045",
+    "halo": { "color": "#faf6f0", "width": 1.2 },
+    "spacing": 700
   }
 }

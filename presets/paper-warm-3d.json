@@ -1,5 +1,5 @@
 {
-  "$comment": "paper-warm with extruded buildings and a tilted camera (gable-maps 2026-10-06). Same palette as paper-warm: roofs in the paper tint #f2eadf, the shaded wall #bcae9c halfway between line-strong #8c7d6f and line #e4d9ca; roads 0.8 instead of 0.6 so they hold up under the blocks. render.camera is a suggestion the request's pitch/bearing override; render.building3d.enabled is the default the request's buildings3d overrides.",
+  "$comment": "paper-warm with extruded buildings and a tilted camera (gable-maps 2026-10-06). Same palette as paper-warm: roofs in the paper tint #f2eadf, the shaded wall #bcae9c halfway between line-strong #8c7d6f and line #e4d9ca; roads 0.8 instead of 0.6 so they hold up under the blocks. render.camera is a suggestion the request's pitch/bearing override; render.building3d.enabled is the default the request's buildings3d overrides. labels: as paper-warm, one size up (12, places 11) because names lie on the tilted ground and are foreshortened.",
   "name": "paper-warm-3d",
   "description": "paper-warm with buildings as warm blocks, seen at an angle.",
   "ui": {
@@ -53,5 +53,28 @@
       "shade": "#bcae9c",
       "opacity": 1
     }
+  },
+  "labels": {
+    "roads": {
+      "classes": ["motorway", "trunk", "primary", "secondary", "tertiary"],
+      "minZoom": 13
+    },
+    "places": {
+      "kinds": ["town", "suburb"],
+      "maxCount": 2,
+      "size": 11,
+      "letterSpacing": 0.18,
+      "transform": "uppercase"
+    },
+    "font": ["Noto Sans Regular"],
+    "size": 12,
+    "letterSpacing": 0.08,
+    "transform": "none",
+    "color": "#5c5045",
+    "halo": {
+      "color": "#faf6f0",
+      "width": 1.2
+    },
+    "spacing": 700
   }
 }

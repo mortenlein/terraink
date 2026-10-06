@@ -1,3 +1,18 @@
+# This fork (read first)
+
+This is Gable's fork of Terraink, run as the map renderer service (README.md). Rules
+that override the upstream guide below:
+
+- **Never** reintroduce the upstream name, logo or branding assets in the UI or in
+  output; never remove LICENSE, LICENSE-OLD, TRADEMARK.md or copyright notices.
+- Map data attribution must stay on every rendered image.
+- The headless path is `server/` (Bun) -> `render.html` -> `src/render/main.ts`, which
+  reuses `generateMapStyle`, `renderStyleToCanvas`, `compositeExport`, `createPngBlob`.
+- Deployment: `infra/compose.yml` on ash, port 127.0.0.1:8215 (Gable's block).
+- Commit style here is plain English imperative subjects; no branch flow (commit to main).
+
+---
+
 # Terraink — Claude Code Guide
 
 ## Commands

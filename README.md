@@ -1,161 +1,157 @@
-![](./public/assets/banner.png)
+# Map renderer (Gable's fork of Terraink)
 
-# Terraink
+This repository is a **fork** of [yousifamanuel/terraink](https://github.com/yousifamanuel/terraink),
+used as the map renderer behind [Gable](https://gable.no): it turns an address or a
+coordinate into a styled map **image** that Gable places on a customer's website at
+publish time. It runs as its own service on our host and is talked to over HTTP only.
 
-[![Website Badge](https://img.shields.io/badge/Website-fff?logo=appveyor&logoColor=000&style=for-the-badge)](https://terraink.app)
-[![Email Badge](https://img.shields.io/badge/Email-D14836?logo=gmail&logoColor=fff&style=for-the-badge)](mailto:hello@terraink.app)
-[![LinkedIn Badge](https://img.shields.io/badge/LinkedIn-0A66C2?logo=linkedin&logoColor=fff&style=for-the-badge)](https://www.linkedin.com/company/terraink/)
-[![Instagram](https://img.shields.io/badge/Instagram-E4405F?logo=instagram&logoColor=fff&style=for-the-badge)](https://instagram.com/terraink.app)
-[![YouTube](https://img.shields.io/badge/YouTube-FF0000?logo=youtube&logoColor=fff&style=for-the-badge)](https://www.youtube.com/@terrainkapp)
-[![Threads](https://img.shields.io/badge/Threads-000?logo=threads&logoColor=fff&style=for-the-badge)](https://www.threads.net/@terraink.app)
-[![Reddit](https://img.shields.io/badge/Reddit-FF4500?logo=reddit&logoColor=fff&style=for-the-badge)](https://www.reddit.com/r/terraink)
-[![TikTok](https://img.shields.io/badge/TikTok-000?logo=tiktok&logoColor=fff&style=for-the-badge)](https://www.tiktok.com/@terraink.app)
-[![Product Hunt](https://img.shields.io/badge/Product%20Hunt-DA552F?logo=producthunt&logoColor=fff&style=for-the-badge)](https://www.producthunt.com/products/terraink)
+Based on Terraink source code. **"Terraink" is a trademark of Yousuf Amanuel, and the
+Terraink logo, visual identity and branding assets are copyright © 2026 Yousuf Amanuel,
+all rights reserved** (see [TRADEMARK.md](./TRADEMARK.md)). This fork is not affiliated with
+or endorsed by the original project. It does not use the Terraink name or logo in its
+interface or output, and it ships none of the upstream branding assets.
 
-[![Bun Badge](https://img.shields.io/badge/Bun-000?logo=bun&logoColor=fff&style=for-the-badge)](https://bun.sh)
-[![Vite Badge](https://img.shields.io/badge/Vite-9135FF?logo=vite&logoColor=fff&style=for-the-badge)](https://vitejs.dev)
-[![React Badge](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=000&style=for-the-badge)](https://react.dev/)
-[![JavaScript Badge](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=000&style=for-the-badge)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
-[![TypeScript Badge](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=fff&style=for-the-badge)](https://www.typescriptlang.org)
-[![OpenStreetMap Badge](https://img.shields.io/badge/OpenStreetMap-7EBC6F?logo=openstreetmap&logoColor=fff&style=for-the-badge)](https://www.openstreetmap.org)
-[![MapLibre Badge](https://img.shields.io/badge/MapLibre-000?logo=maplibre&logoColor=fff&style=for-the-badge)](https://maplibre.org/)
-[![GitHub Badge](https://img.shields.io/badge/GitHub-fff?logo=github&logoColor=000&style=for-the-badge)](https://github.com/yousifamanuel/terraink)
-[![Cloudflare Badge](https://img.shields.io/badge/Cloudflare-F38020?logo=cloudflare&logoColor=fff&style=for-the-badge)](https://www.cloudflare.com)
-[![Docker Badge](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=fff&style=for-the-badge)](https://www.docker.com)
+## Licence
 
-> Note: Terraink is still in development. Every feedback is appreciated. This is an open-source project, and community contributions are very welcome.
+As upstream states: as of **April 3rd 2026**, changes are licensed under
+[AGPL-3.0](./LICENSE); code released before that date remains under the
+[MIT License](./LICENSE-OLD). Both files are kept unchanged, including the additional
+terms in `LICENSE` ("All copies, modifications, or derivative works must retain the
+original copyright notice and license text"). Our changes in this fork are AGPL-3.0 as well.
 
-> **License & Trademark Notice:** This project is licensed under AGPL-3.0 and includes trademark protections. See the [License](#license) and [Trademark](#trademark) sections for details.
+Copyright © 2026 Yousuf Amanuel (AGPL-3.0 part); Copyright © 2026 Ankur Gupta and
+Yousuf Amanuel (MIT part); changes in this fork copyright © 2026 Morten Lein.
 
-## Features
+The corresponding source of the running service is this repository (AGPL-3.0 section 13);
+the app's footer links to it.
 
-- **Custom city map posters** for any location in the world, powered by real OpenStreetMap data
-- **Smart geocoding** — search for any city or region by name, or enter coordinates manually
-- **Rich theme system** — choose from dozens of curated themes or build your own custom color palette
-- **Detailed map layers** — roads, water bodies, parks, and building footprints with per-layer styling
-- **Typography controls** — set city/country display labels in one of nine bundled, self-hosted typefaces
-- **High-resolution export** — download a print-ready poster as PNG, PDF, or layered SVG at any defined dimension
+## What changed from upstream
 
-## Data Providers and Mapping Stack
+- **Branding removed.** Upstream's name, logo, favicons, banner, social links, About and
+  "support" modals, install prompt, the `terraink.app` credit line drawn on exports, and the
+  terraink.app SEO/hosting files are gone. The interface says "Map renderer". Internal storage
+  keys and event names inherited from upstream are unchanged (they are not shown to anyone).
+- **No watermark.** Exports carry no credit line unless `VITE_APP_CREDIT_URL` is set (it is not).
+- **Map data attribution stays on every image**, bottom-right, shrunk to fit and never
+  covered by the pin or label. The headless renderer reads the text from the tile source's own
+  TileJSON (`OpenFreeMap © OpenMapTiles Data from OpenStreetMap` for OpenFreeMap), so the
+  attribution is the one the provider asks for; `MAP_ATTRIBUTION` overrides it, and a source
+  without an attribution is refused.
+- **Headless render API** (`server/`, `render.html`, `src/render/main.ts`): a Bun service
+  that drives the app's own export path in headless Chromium.
+- **Presets** (`presets/*.json`): map styles in the app's theme format plus a `render` block.
+  Gable owns them; `paper-warm` and `ink` are the first two, from Gable's warm theme.
+- **Geocoding endpoint** that honours the Nominatim usage policy.
 
-- **Map data**: [OpenStreetMap contributors](https://www.openstreetmap.org/copyright)
-- **Tiles**: [OpenMapTiles](https://openmaptiles.org/)
-- **Tile hosting**: [OpenFreeMap](https://openfreemap.org/)
-- **Geocoding**: [Nominatim](https://nominatim.openstreetmap.org/)
-- **Map renderer**: [MapLibre](https://maplibre.org/)
+## Render API
 
-## User Interface
+The service listens on port 3000 in the container; on our host it is published on
+`127.0.0.1:8215` only. There is no authentication, so it must never be exposed publicly.
 
-![Terraink web UI](./docs/images/Web_UI.png)
+### `POST /render`
 
-## Showcase
+```json
+{ "lat": 66.3128, "lng": 14.1428, "zoom": 14, "width": 1200, "height": 800,
+  "preset": "paper-warm", "label": "Fjellbakeriet", "marker": true, "format": "png" }
+```
 
-### Featured Examples
+Returns `image/png` bytes and an `X-Render-Ms` header.
 
-<p align="center">
-  <img src="./docs/images/showcase_1.png" alt="Featured showcase example 1" width="100%" />
-  <img src="./docs/images/showcase_2.png" alt="Featured showcase example 2" width="100%" />
-</p>
+| Field | Rule |
+|---|---|
+| `lat`, `lng` | numbers; lat in [-85, 85], lng in [-180, 180] |
+| `zoom` | number in [0, 20], MapLibre zoom (512 px tiles) at the output's pixel size |
+| `width`, `height` | integers in [64, 2400] |
+| `preset` | a file name in `presets/` without `.json` |
+| `label` | optional, at most 80 characters: drawn in a box above the pin |
+| `marker` | optional, default `true`: a pin at the centre |
+| `format` | `"png"` (the only format) |
 
-## License
+Errors are JSON `{ "error": "..." }`: 400 for bad input or an unknown preset, 502 when the tile
+source fails (any tile that fails to load fails the whole render, so a half-blank image is
+never returned), 503 when more than 10 renders are waiting, 504 after 30 s.
 
-As of **April 3rd 2026**, all new changes to this repository are licensed under [AGPL-3.0](LICENSE). Code released before that date remains under the [MIT License](LICENSE-OLD).
+Renders run **one at a time** in a single shared Chromium. The map is drawn at twice the output
+size and scaled down (smoother lines), with SwiftShader software WebGL, so no GPU is needed.
 
-The hosted Terraink service includes attribution and branding as part of the user interface.
+### `GET /geocode?q=<address>&limit=5`
 
-If you deploy or modify the open-source version, you are responsible for complying with the AGPL-3.0 license, including preserving license and copyright notices.
+```json
+{ "query": "storgata 1 mo i rana", "cached": false,
+  "results": [{ "lat": 66.31, "lng": 14.14, "displayName": "...", "type": "house" }] }
+```
 
-For access to the hosted version with additional features and support, see Terraink Business or contact: [business@terraink.app](mailto:business@terraink.app).
+Proxies [Nominatim](https://nominatim.openstreetmap.org/) under its usage policy,
+<https://operations.osmfoundation.org/policies/nominatim/>:
 
-## Trademark
+- every request identifies the application in the `User-Agent` with a contact e-mail from
+  `NOMINATIM_CONTACT`; **without that variable the endpoint answers 503 and never calls Nominatim**;
+- at most one request per second across all callers (calls are queued and spaced);
+- results are cached on disk for 30 days, keyed by the normalised query (case, commas and
+  whitespace folded), so the same address is asked once.
 
-Terraink™ is a trademark of Yousuf Amanuel. An application for registration has been filed with the German Patent and Trade Mark Office (DPMA). This filing establishes priority rights under the Paris Convention, allowing international trademark registration to be pursued within six months of the original filing date. The Terraink logo, visual identity, and branding assets are copyright © 2026 Yousuf Amanuel. All rights reserved.
+### `GET /health`, `GET /presets`
 
-Unauthorized use of the Terraink name in connection with similar software, map services, or related commercial products may be restricted. For licensing inquiries, contact [business@terraink.app](mailto:business@terraink.app).
+`/health` → `{ ok, browser: "up" | "idle", queue, tileUrl }`. `/presets` lists the preset names.
 
-See [TRADEMARK.md](./TRADEMARK.md) for details.
+`GET /` serves the interactive map editor (the upstream app, de-branded), useful for trying
+styles by hand.
 
-## Run
+## Provisional choices
+
+- **Tile source.** `TILE_URL` defaults to OpenFreeMap's public planet
+  (`https://tiles.openfreemap.org/planet`, OpenMapTiles schema). Whether customer sites may rely
+  on it, or we self-host OpenMapTiles, is an open decision on the Gable side.
+- **Geocoding.** The public Nominatim instance is for low volume. Kartverket's address data is
+  the alternative for Norwegian addresses; also open on the Gable side.
+
+## Configuration
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORT` | `3000` | listen port |
+| `TILE_URL` | OpenFreeMap planet | TileJSON URL of an OpenMapTiles-schema vector source |
+| `MAP_ATTRIBUTION` | (from TileJSON) | attribution text drawn on images |
+| `NOMINATIM_CONTACT` | (none) | contact e-mail for Nominatim; geocoding is off without it |
+| `NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | another Nominatim instance |
+| `GEOCODE_CACHE_DIR` | `/data/geocode` in the image | cache directory (a named volume in compose) |
+
+## Develop
 
 ```bash
-bun install
-bun run dev
+bun install && (cd server && bun install)
+bun run build                 # dist/: the editor and render.html
+PORT=9057 bun server/index.ts # needs a Playwright Chromium (npx playwright install chromium)
+(cd server && bun test)       # input validation, query normalisation, attribution parsing
+bun run dev                   # the editor alone, with Vite
 ```
 
-## Environment
-
-Check [`.env.example`](./.env.example) for available variables. They are optional for most local work and should not be set during testing unless a specific case requires them.
-
-## Build
+## Docker
 
 ```bash
-bun run build
+cp infra/.env.example infra/.env && chmod 600 infra/.env   # set NOMINATIM_CONTACT
+docker compose -f infra/compose.yml up -d --build
+curl -s http://127.0.0.1:8215/health
+curl -s -X POST http://127.0.0.1:8215/render -H 'Content-Type: application/json' \
+  -d '{"lat":66.3128,"lng":14.1428,"zoom":14,"width":1200,"height":800,"preset":"paper-warm","format":"png"}' \
+  -o mo.png
+docker compose -f infra/compose.yml down    # stop (the geocode cache volume stays)
 ```
 
-## Deploy with Docker (Self-Hosting)
-
-### 1) Build and run with Docker Compose
-
-Create `.env` from `.env.example` (or set `APP_PORT` directly in your shell), then run:
-
-```bash
-docker compose up -d --build
-```
-
-This serves the app on `http://localhost:7200` by default.
-
-To change the exposed host port:
-
-- Linux/macOS:
-
-```bash
-APP_PORT=80 docker compose up -d --build
-```
-
-- PowerShell:
-
-```powershell
-$env:APP_PORT=80
-docker compose up -d --build
-```
-
-### 2) Stop the deployment
-
-```bash
-docker compose down
-```
-
-### 3) Optional: build and run without Compose
-
-```bash
-docker build -t terraink:latest .
-docker run -d --name terraink -p 7200:80 --restart unless-stopped terraink:latest
-```
-
-## Contributing
-
-> The contribution guidelines are meant to keep Terraink easy to extend, review, and maintain over time. They are here to support a durable architecture, not to add unnecessary friction.
-
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR.
-
-- Branch from `dev` and target `dev` only. Do not open PRs against `main`.
-- Fill out the pull request template completely when you open a PR.
-- Keep contributions clean, modular, and aligned with the existing architecture.
-- Avoid hard-coded values when constants, configuration, or reusable abstractions are more appropriate.
-- AI-assisted coding is allowed, but submissions must be reviewed, refined, and intentionally engineered before review.
+The image is multi-stage (app build, server dependencies, runtime with Chromium headless
+shell only) and runs as the non-root `bun` user. Compose project `gable-maps`, container
+`gable-maps`, subnet pinned to `10.82.13.0/24`, `restart: unless-stopped`, healthcheck on `/health`.
 
 ## Attribution
 
-- **Map data**: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), licensed under [ODbL](https://opendatacommons.org/licenses/odbl/)
-- **Tile schema**: © [OpenMapTiles](https://openmaptiles.org/), licensed under [ODbL](https://openmaptiles.org/docs/tileset/openmaptiles/)
+- **Map data**: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), [ODbL](https://opendatacommons.org/licenses/odbl/)
+- **Tile schema**: © [OpenMapTiles](https://openmaptiles.org/)
 - **Tile hosting**: [OpenFreeMap](https://openfreemap.org/)
 - **Geocoding**: [Nominatim](https://nominatim.openstreetmap.org/) / OpenStreetMap data
-- **Map renderer**: [MapLibre GL JS](https://maplibre.org/), licensed under [BSD-3-Clause](https://github.com/maplibre/maplibre-gl-js/blob/main/LICENSE.txt)
+- **Map rendering**: [MapLibre GL JS](https://maplibre.org/), BSD-3-Clause
+- **Fonts**: SIL Open Font License, see [public/licenses/fonts.txt](./public/licenses/fonts.txt)
 
-## Acknowledgment
+## Upstream's acknowledgment
 
-Terraink was inspired by [MapToPoster](https://github.com/originalankur/maptoposter) by [Ankur Gupta](https://github.com/originalankur), originally released under the MIT license. Terraink is an independent reimplementation built from scratch using Bun, React, and TypeScript, and has since evolved significantly beyond the original concept.
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=yousifamanuel/terraink&type=Date)](https://star-history.com/#yousifamanuel/terraink&Date)
+Terraink was inspired by [MapToPoster](https://github.com/originalankur/maptoposter) by
+[Ankur Gupta](https://github.com/originalankur), originally released under the MIT license.

@@ -1,0 +1,44 @@
+# The map renderer on ash (Gable's port block, 8215; foundation hosts/ash/ports.tsv).
+# Loopback only: nothing outside the host reaches it, and it has no auth.
+#   docker compose -f infra/compose.yml up -d --build
+# Settings in infra/.env (gitignored; template infra/.env.example).
+name: gable-maps
+
+services:
+  maps:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: gable-maps:latest
+    container_name: gable-maps
+    restart: unless-stopped
+    init: true # reaps Chromium's child processes
+    ports:
+      - "127.0.0.1:8215:3000"
+    environment:
+      # Nominatim requires identification; geocoding answers 503 without it.
+      NOMINATIM_CONTACT: ${NOMINATIM_CONTACT:-}
+      # TileJSON of an OpenMapTiles-schema vector source. PROVISIONAL: the
+      # tile source for customer sites is not decided (Gable OPEN_QUESTIONS).
+      TILE_URL: ${TILE_URL:-https://tiles.openfreemap.org/planet}
+      # Empty = read the attribution from the TileJSON.
+      MAP_ATTRIBUTION: ${MAP_ATTRIBUTION:-}
+    volumes:
+      - geocode-cache:/data/geocode
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  geocode-cache:
+
+networks:
+  default:
+    # Pinned: the host's Docker address pools are exhausted (gable infra/README.md).
+    ipam:
+      config:
+        - subnet: 10.82.13.0/24

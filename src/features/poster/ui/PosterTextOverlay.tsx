@@ -121,7 +121,7 @@ export default function PosterTextOverlay({
         &copy; OpenStreetMap contributors
       </span>
 
-      {includeCredits && (
+      {includeCredits && APP_CREDIT_URL && (
         <span
           className="poster-credits"
           style={{

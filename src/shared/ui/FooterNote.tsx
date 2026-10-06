@@ -6,6 +6,9 @@ import {
   PRIVACY_URL,
 } from "@/core/config";
 import { InfoIcon } from "@/shared/ui/Icons";
+
+/** Where network users get the corresponding source (AGPL-3.0 section 13). */
+const SOURCE_URL = "https://github.com/mortenlein/terraink";
 import {
   openLegalDoc,
   LEGAL_DOC_PAGES,
@@ -99,9 +102,28 @@ export default function FooterNote() {
       </div>
 
       <div className="desktop-footer-middle">
+        {/* The copyright and licence notice AGPL-3.0 requires (LICENSE,
+            additional terms), and the source offer of section 13. No
+            upstream name or mark: README, "Branding". */}
         <p className="made-note">
-          Terraink™ v{appVersion} | © 2026 | Made with{" "}
-          <span className="heart">❤︎</span> in Hannover, Germany
+          v{appVersion} | Copyright © 2026 Yousuf Amanuel and contributors |{" "}
+          <a
+            className="source-link"
+            href="https://www.gnu.org/licenses/agpl-3.0.html"
+            target="_blank"
+            rel="noreferrer"
+          >
+            AGPL-3.0
+          </a>{" "}
+          |{" "}
+          <a
+            className="source-link"
+            href={SOURCE_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Source code
+          </a>
         </p>
       </div>
 

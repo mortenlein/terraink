@@ -115,8 +115,7 @@ function legalPagesPlugin() {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${title} – Terraink</title>
-    <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
+    <title>${title} – Map renderer</title>
     <style>
       body {
         margin: 0;
@@ -141,7 +140,7 @@ function legalPagesPlugin() {
   </head>
   <body>
     <main>
-      <a class="back-link" href="/">&larr; Back to Terraink</a>
+      <a class="back-link" href="/">&larr; Back to the map renderer</a>
 ${body}
     </main>
   </body>
@@ -257,6 +256,12 @@ export default defineConfig({
     // single chunk even with manual chunking.
     chunkSizeWarningLimit: 1100,
     rollupOptions: {
+      // render.html is the headless render page the Bun server drives
+      // (server/render.ts); index.html is the interactive app.
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        render: path.resolve(__dirname, "render.html"),
+      },
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return;

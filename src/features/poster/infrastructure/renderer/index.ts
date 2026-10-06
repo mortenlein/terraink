@@ -36,6 +36,7 @@ export async function compositeExport(
     markerScaleY = 1,
     markerSizeScale = 1,
     routes = [],
+    attribution,
   } = options;
 
   const width = mapCanvas.width;
@@ -110,6 +111,7 @@ export async function compositeExport(
     showPosterText,
     showOverlay,
     includeCredits,
+    attribution,
   );
 
   const size: CanvasSize = {

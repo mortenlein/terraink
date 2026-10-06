@@ -238,11 +238,6 @@ export default function StartupLocationModal({
       aria-modal="true"
       aria-labelledby="startup-location-title"
     >
-      <div className="startup-location-logo-wrap" aria-hidden="true">
-        <img className="startup-location-logo" src="/assets/logo.svg" alt="" />
-        <p className="startup-location-app-name">Terraink</p>
-      </div>
-
       <div className="startup-location-card is-visible">
         <p className="startup-location-title" id="startup-location-title">
           Choose Location

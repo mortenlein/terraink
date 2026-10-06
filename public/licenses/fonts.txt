@@ -1,12 +1,12 @@
 ================================================================================
-FONT LICENSES — terraink.app
+FONT LICENSES — map renderer
 ================================================================================
 
-All typefaces bundled with and served by terraink.app are licensed under the
+All typefaces bundled with and served by this application are licensed under the
 SIL Open Font License, Version 1.1. The full license text is reproduced at the
 end of this file.
 
-The font files are self-hosted: they are served from terraink.app itself and
+The font files are self-hosted: they are served from this application itself and
 are not fetched from any third-party content delivery network.
 
 --------------------------------------------------------------------------------

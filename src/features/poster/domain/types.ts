@@ -34,6 +34,8 @@ export interface ExportOptions {
   markerScaleY?: number;
   markerSizeScale?: number;
   routes?: Route[];
+  /** Overrides for the map data attribution (headless renders set it). */
+  attribution?: import("@/features/poster/infrastructure/renderer/typography").PosterAttribution;
 }
 
 export interface Typography {

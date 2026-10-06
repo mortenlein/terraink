@@ -18,6 +18,20 @@ import {
   computeAttributionColor,
 } from "@/features/poster/domain/textLayout";
 
+/** Map data attribution drawn in the bottom-right corner of every export. */
+export const DEFAULT_MAP_ATTRIBUTION = "\u00a9 OpenStreetMap contributors";
+
+export interface PosterAttribution {
+  /** The text; defaults to the OpenStreetMap notice. Never empty: ODbL requires it. */
+  text?: string;
+  /** Font size in px; defaults to the poster scale. */
+  fontSizePx?: number;
+  /** Text colour; defaults to the poster's computed attribution colour. */
+  color?: string;
+  /** When set, a solid box in this colour sits behind the text so it stays legible on any map. */
+  backdrop?: string;
+}
+
 export function drawPosterText(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -30,6 +44,7 @@ export function drawPosterText(
   showPosterText: boolean,
   showOverlay: boolean,
   includeCredits: boolean = true,
+  attribution: PosterAttribution = {},
 ): void {
   const textColor = theme.ui?.text || "#111111";
   const landColor = theme.map?.land || "#808080";
@@ -85,19 +100,42 @@ export function drawPosterText(
     ctx.globalAlpha = 1;
   }
 
-  ctx.fillStyle = attributionColor;
-  ctx.globalAlpha = attributionAlpha;
+  // The attribution is shrunk to fit the image width rather than clipped:
+  // on a small map image it must still be complete (ODbL / CC-BY).
+  const attributionText = attribution.text?.trim() || DEFAULT_MAP_ATTRIBUTION;
+  const margin = Math.min(width, height) * TEXT_EDGE_MARGIN_RATIO;
+  let attributionSize = attribution.fontSizePx ?? attributionFontSize;
+  ctx.font = `300 ${attributionSize}px ${bodyFontFamily}`;
+  const maxTextWidth = width - margin * 4;
+  const measured = ctx.measureText(attributionText).width;
+  if (measured > maxTextWidth) {
+    attributionSize = attributionSize * (maxTextWidth / measured);
+    ctx.font = `300 ${attributionSize}px ${bodyFontFamily}`;
+  }
+  const attrRight = width - margin;
+  const attrBottom = height - margin;
+  if (attribution.backdrop) {
+    const textWidth = ctx.measureText(attributionText).width;
+    const padX = attributionSize * 0.5;
+    const padY = attributionSize * 0.3;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = attribution.backdrop;
+    ctx.fillRect(
+      attrRight - textWidth - padX,
+      attrBottom - attributionSize - padY,
+      textWidth + padX * 2,
+      attributionSize + padY * 2,
+    );
+  }
+  ctx.fillStyle = attribution.color ?? attributionColor;
+  ctx.globalAlpha = attribution.color ? 1 : attributionAlpha;
   ctx.textAlign = "right";
   ctx.textBaseline = "bottom";
-  ctx.font = `300 ${attributionFontSize}px ${bodyFontFamily}`;
-  ctx.fillText(
-    "\u00a9 OpenStreetMap contributors",
-    width * (1 - TEXT_EDGE_MARGIN_RATIO),
-    height * (1 - TEXT_EDGE_MARGIN_RATIO),
-  );
+  ctx.fillText(attributionText, attrRight, attrBottom);
   ctx.globalAlpha = 1;
 
-  if (includeCredits) {
+  // No credit line unless a credit URL is configured (this fork ships none).
+  if (includeCredits && APP_CREDIT_URL) {
     ctx.fillStyle = attributionColor;
     ctx.globalAlpha = attributionAlpha;
     ctx.textAlign = "left";

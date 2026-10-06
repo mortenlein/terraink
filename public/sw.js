@@ -1,16 +1,10 @@
-const CACHE_NAME = "terraink-static-v2";
-const TILE_CACHE_NAME = "terraink-tiles-v1";
+const CACHE_NAME = "map-renderer-static-v3";
+const TILE_CACHE_NAME = "map-renderer-tiles-v1";
 const TILE_ORIGINS = ["https://tiles.openfreemap.org"];
 const APP_SHELL_ASSETS = [
   "/",
   "/index.html",
   "/site.webmanifest",
-  "/assets/icon-192.png",
-  "/assets/icon-512.png",
-  "/assets/icon-maskable.png",
-  "/assets/favicon-32.png",
-  "/assets/favicon-16.png",
-  "/assets/apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (event) => {

@@ -251,6 +251,14 @@ export default defineConfig({
   define: {
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(appVersion),
   },
+  // Keep class fields as they are. Lowering them (the default target includes
+  // Safari 14) injects a `__publicField` helper into the main bundle that
+  // MapLibre's worker, built from serialised code, cannot see: every GeoJSON
+  // source failed with "__publicField is not defined" (minified "Ne is not
+  // defined"), 2026-10-06. MapLibre 5 needs WebGL2 (Safari 15+) anyway.
+  esbuild: {
+    supported: { "class-field": true, "class-static-field": true },
+  },
   build: {
     // maplibre-gl is distributed as a large prebundled module and remains a
     // single chunk even with manual chunking.

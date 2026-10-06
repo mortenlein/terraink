@@ -66,10 +66,18 @@ export interface OffscreenRenderParams {
  * headless render page (src/render/main.ts) takes the same path as the
  * interactive export, without needing a live preview map first.
  */
+export interface OffscreenRenderHooks {
+  /** Called right after the map is constructed, before the style loads. */
+  onCreate?: (map: MaplibreMap) => void;
+  /** Called once the map is idle, before the canvas is copied; may change the map and wait again. */
+  beforeCapture?: (map: MaplibreMap) => Promise<void>;
+}
+
 export async function renderStyleToCanvas(
   params: OffscreenRenderParams,
   exportWidth: number,
   exportHeight: number,
+  hooks?: OffscreenRenderHooks,
 ): Promise<HTMLCanvasElement> {
   const { style, center, zoom, pitch, bearing, renderWidth, renderHeight, pixelRatio } = params;
   const offscreenContainer = createOffscreenContainer(renderWidth, renderHeight);
@@ -85,11 +93,15 @@ export async function renderStyleToCanvas(
     interactive: false,
     attributionControl: false,
     pixelRatio,
+    // A still image: names must be fully drawn at capture, not fading in.
+    fadeDuration: 0,
     canvasContextAttributes: { preserveDrawingBuffer: true },
   });
 
   try {
+    hooks?.onCreate?.(exportMap);
     await waitForMapIdle(exportMap);
+    if (hooks?.beforeCapture) await hooks.beforeCapture(exportMap);
 
     const glCanvas = exportMap.getCanvas();
     const exportCanvas = document.createElement("canvas");

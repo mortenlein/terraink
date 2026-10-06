@@ -14,6 +14,13 @@ export const config = {
    * customer sites is an open decision on the Gable side (OPEN_QUESTIONS).
    */
   tileUrl: process.env.TILE_URL ?? "https://tiles.openfreemap.org/planet",
+  /**
+   * Glyph PBF template for map names (presets' `labels`). OpenFreeMap serves
+   * the Noto Sans stacks (Regular, Italic, Bold) at this path; the URL is the
+   * `glyphs` of its own styles (https://tiles.openfreemap.org/styles/liberty,
+   * read 2026-10-06). Other fonts need PBF glyphs we generate and serve.
+   */
+  glyphsUrl: process.env.GLYPHS_URL || "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
   /** Overrides the attribution read from the TileJSON. Never empty. */
   attributionOverride: (process.env.MAP_ATTRIBUTION ?? "").trim(),
   /** Contact e-mail for Nominatim's identification rule; geocoding is refused without it. */

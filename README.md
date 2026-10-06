@@ -45,6 +45,9 @@ the app's footer links to it.
 - **3D buildings**: a `fill-extrusion` layer on OpenMapTiles' `building` layer
   (`render_height` / `render_min_height`, 6 m when missing, `hide_3d` parts skipped), drawn
   after the roads.
+- **Road and place names** (`labels` in a preset): only the road classes and place kinds the
+  preset lists, named at most once or twice per image, kept clear of the pin, its label, the
+  attribution and the image edges.
 - **Geocoding endpoint** that honours the Nominatim usage policy.
 
 ## Render API
@@ -88,7 +91,10 @@ Renders run **one at a time** in a single shared Chromium. The map is drawn at t
 size and scaled down (smoother lines), with SwiftShader software WebGL, so no GPU is needed.
 Measured on ash in the container (2026-10-06, Mo i Rana, `X-Render-Ms`): 1200×800 flat
 2.3–2.5 s, 1200×800 with 3D buildings at pitch 50 2.0–2.7 s, 600×400 at `scale: 2` 2.2–2.6 s,
-and the worst case allowed (2400×1600, 3D, pitch 60) 6.5 s, against the 30 s cap.
+and the worst case allowed (2400×1600, 3D, pitch 60) 6.5 s, against the 30 s cap. Presets with
+`labels` cost about a second more (same day: 1200×800 flat 3.4–4.0 s, 3D 3.3–3.9 s, 600×400 at
+`scale: 2` 3.3–3.5 s): every render opens a fresh browser context, so the glyphs are fetched each
+time, and a place cap needs a second placement pass.
 
 ### Preset `render` block
 
@@ -108,6 +114,53 @@ roof darkened toward black. MapLibre shades walls with one light, not per face, 
 is turned into the light's intensity (`buildingLight` in
 `src/features/map/infrastructure/maplibreStyle.ts`): the wall facing away from the light
 comes out at `shade`, the others in between, and its hue follows `color`.
+
+### Preset `labels` block
+
+Road and place names. A preset without `labels` gets none, and its style is exactly what it
+was before labels existed (no glyphs, no symbol layers). All sizes are CSS pixels of the output
+at `scale: 1`; zooms are request zooms.
+
+```json
+"labels": {
+  "roads": { "classes": ["motorway", "trunk", "primary", "secondary", "tertiary"], "minZoom": 13 },
+  "places": { "kinds": ["town", "suburb"], "maxCount": 2, "size": 10, "letterSpacing": 0.18, "transform": "uppercase" },
+  "font": ["Noto Sans Regular"], "size": 11, "letterSpacing": 0.08, "transform": "none",
+  "color": "#5c5045", "halo": { "color": "#faf6f0", "width": 1.2 }, "spacing": 700
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `roads.classes` | OpenMapTiles `transportation_name` classes to name; nothing else is named. The text is the road's `name`, else its `ref` (`E 6`) unless it carries several |
+| `roads.minZoom` | no road names below this zoom (default 13) |
+| `places.kinds` | OpenMapTiles `place` classes (`city`, `town`, `village`, `suburb`, …) |
+| `places.maxCount` | at most this many place names, the most important (lowest `rank`) first; default 2 |
+| `places.size`, `.letterSpacing`, `.transform` | place-name overrides of the shared values |
+| `font` | a font stack the glyph server has (OpenFreeMap: `Noto Sans Regular`, `Italic`, `Bold`) |
+| `size`, `letterSpacing` (em), `transform` (`none` / `uppercase`) | the road-name type |
+| `color` | the ink of every name (default the preset's text colour) |
+| `halo` | `{ color, width }`: the outline, and the colour of the plaque under a road name (default the land colour) |
+| `spacing` | minimum distance between repeats of one name, at least 600 |
+
+How it is drawn (`src/features/map/infrastructure/labelLayers.ts`, `src/render/main.ts`):
+
+- Road names follow the line, beside it rather than on it, with a plaque in the halo colour
+  under them. The plaque is invisible except where it hides a line crossing the name: the halo
+  alone cannot do that, because MapLibre caps it near an eighth of the font size and a word gap
+  has no glyph to halo.
+- Collision is on with generous padding; places sit above roads, so a town's name wins.
+- Transparent boxes over the pin and its label, the attribution and a band along every edge
+  are placed before any name, so no name is ever under the pin or cut by the frame.
+- On a tilted map names lie on the ground (`text-pitch-alignment: map`) and follow the road.
+  The far ground, where a name would be drawn at less than 70 % of its height
+  (MapLibre's perspective scaling times the foreshortening), is kept clear, so 3D renders
+  name only the near and middle ground.
+- **Glyphs** come from `GLYPHS_URL`, by default OpenFreeMap's
+  `https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf` (the `glyphs` of its own
+  styles, read 2026-10-06). A failed glyph request fails the render, like a tile. Other fonts
+  (Gable's own, say) would need PBF glyph ranges generated from the font files and served by
+  this service; that is not done.
 
 ### `GET /geocode?q=<address>&limit=5`
 
@@ -147,6 +200,7 @@ styles by hand.
 | `PORT` | `3000` | listen port |
 | `TILE_URL` | OpenFreeMap planet | TileJSON URL of an OpenMapTiles-schema vector source |
 | `MAP_ATTRIBUTION` | (from TileJSON) | attribution text drawn on images |
+| `GLYPHS_URL` | OpenFreeMap's fonts | glyph PBF template (`{fontstack}`, `{range}`) for map names |
 | `NOMINATIM_CONTACT` | (none) | contact e-mail for Nominatim; geocoding is off without it |
 | `NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | another Nominatim instance |
 | `GEOCODE_CACHE_DIR` | `/data/geocode` in the image | cache directory (a named volume in compose) |

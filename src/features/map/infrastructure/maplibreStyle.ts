@@ -2,6 +2,11 @@ import type { ResolvedTheme } from "@/features/theme/domain/types";
 import { MAP_OVERZOOM_SCALE } from "@/features/map/infrastructure/constants";
 import { blendHex, parseHex } from "@/shared/utils/color";
 import type { LightSpecification, StyleSpecification } from "maplibre-gl";
+import {
+  LABEL_CLEARANCE_SOURCE_ID,
+  labelLayers,
+  type LabelStyle,
+} from "@/features/map/infrastructure/labelLayers";
 
 const OPENFREEMAP_SOURCE = "https://tiles.openfreemap.org/planet";
 const SOURCE_ID = "openfreemap";
@@ -250,6 +255,11 @@ export function generateMapStyle(
     lineWidthScale?: number;
     /** Draw buildings as extruded blocks instead of flat footprints. */
     buildings3d?: Building3dStyle;
+    /**
+     * Road and place names (headless renders, the preset's `labels`). Absent
+     * means no glyphs, no symbol layers: the style is unchanged.
+     */
+    labels?: { style: LabelStyle; glyphsUrl: string; pixelScale?: number };
   },
 ): StyleSpecification {
   const buildingFill =
@@ -765,6 +775,22 @@ export function generateMapStyle(
       },
     });
     style.light = buildingLight(buildings3d);
+  }
+
+  if (options?.labels) {
+    // After the 3D blocks: a name lies on its road and is drawn over a block
+    // that stands in front of it rather than cut in half by it.
+    style.glyphs = options.labels.glyphsUrl;
+    style.sources[LABEL_CLEARANCE_SOURCE_ID] = {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    };
+    style.layers.push(
+      ...labelLayers(options.labels.style, {
+        sourceId: SOURCE_ID,
+        pixelScale: options.labels.pixelScale,
+      }),
+    );
   }
 
   return style;

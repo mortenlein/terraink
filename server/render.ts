@@ -113,7 +113,8 @@ async function renderOnce(input: RenderInput): Promise<{ png: Buffer; ms: number
   const view = resolveView(input, preset);
   const b = await getBrowser();
   const context = await b.newContext({ viewport: { width: 800, height: 600 } });
-  const tileHost = new URL(config.tileUrl).host;
+  // Glyphs count like tiles: a missing glyph range would drop names silently.
+  const sourceHosts = new Set([new URL(config.tileUrl).host, new URL(config.glyphsUrl.replace(/[{}]/g, "")).host]);
   const failures: string[] = [];
   const started = Date.now();
   try {
@@ -121,10 +122,10 @@ async function renderOnce(input: RenderInput): Promise<{ png: Buffer; ms: number
     // A tile that fails still lets MapLibre go idle, and the image is then
     // blank where the tile was: count failures and refuse the render.
     page.on("response", (r) => {
-      if (r.status() >= 400 && new URL(r.url()).host === tileHost) failures.push(`${r.status()} ${r.url()}`);
+      if (r.status() >= 400 && sourceHosts.has(new URL(r.url()).host)) failures.push(`${r.status()} ${r.url()}`);
     });
     page.on("requestfailed", (r) => {
-      if (new URL(r.url()).host === tileHost) failures.push(`${r.failure()?.errorText} ${r.url()}`);
+      if (sourceHosts.has(new URL(r.url()).host)) failures.push(`${r.failure()?.errorText} ${r.url()}`);
     });
     const pageErrors: string[] = [];
     page.on("pageerror", (e) => pageErrors.push(e.message));
@@ -150,6 +151,7 @@ async function renderOnce(input: RenderInput): Promise<{ png: Buffer; ms: number
         buildings3d: view.buildings3d,
         scale: input.scale,
         sourceUrl: config.tileUrl,
+        glyphsUrl: config.glyphsUrl,
         attribution,
       }),
       timeout,

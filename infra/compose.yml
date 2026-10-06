@@ -21,6 +21,8 @@ services:
       # TileJSON of an OpenMapTiles-schema vector source. PROVISIONAL: the
       # tile source for customer sites is not decided (Gable OPEN_QUESTIONS).
       TILE_URL: ${TILE_URL:-https://tiles.openfreemap.org/planet}
+      # Glyph PBFs for map names; empty = OpenFreeMap's (server/config.ts).
+      GLYPHS_URL: ${GLYPHS_URL:-}
       # Empty = read the attribution from the TileJSON.
       MAP_ATTRIBUTION: ${MAP_ATTRIBUTION:-}
     volumes:

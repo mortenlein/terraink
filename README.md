@@ -40,7 +40,11 @@ the app's footer links to it.
 - **Headless render API** (`server/`, `render.html`, `src/render/main.ts`): a Bun service
   that drives the app's own export path in headless Chromium.
 - **Presets** (`presets/*.json`): map styles in the app's theme format plus a `render` block.
-  Gable owns them; `paper-warm` and `ink` are the first two, from Gable's warm theme.
+  Gable owns them; `paper-warm` and `ink` are the first two, from Gable's warm theme, and
+  `paper-warm-3d` is `paper-warm` with extruded buildings and a tilted camera.
+- **3D buildings**: a `fill-extrusion` layer on OpenMapTiles' `building` layer
+  (`render_height` / `render_min_height`, 6 m when missing, `hide_3d` parts skipped), drawn
+  after the roads.
 - **Geocoding endpoint** that honours the Nominatim usage policy.
 
 ## Render API
@@ -64,8 +68,17 @@ Returns `image/png` bytes and an `X-Render-Ms` header.
 | `width`, `height` | integers in [64, 2400] |
 | `preset` | a file name in `presets/` without `.json` |
 | `label` | optional, at most 80 characters: drawn in a box above the pin |
-| `marker` | optional, default `true`: a pin at the centre |
+| `marker` | optional, default `true`: a pin at the centre (a dot when flat, a standing pin with its tip on the spot when tilted) |
 | `format` | `"png"` (the only format) |
+| `pitch` | optional number in [0, 60], camera tilt in degrees; default the preset's `render.camera.pitch`, else 0 |
+| `bearing` | optional number in [-180, 180], camera rotation in degrees; default the preset's `render.camera.bearing`, else 0 |
+| `buildings3d` | optional boolean: buildings as extruded blocks; default the preset's `render.building3d.enabled`, else `false` |
+| `scale` | optional number in [1, 3], default 1: device pixel ratio. The PNG is `width*scale` by `height*scale` with the same map extent, line weights, pin, label and attribution, only sharper; `width*scale` and `height*scale` must stay within 2400 |
+
+`scale` is for images shown at `width` CSS pixels on high-density screens: a 600×400 map at
+`scale: 2` is a 1200×800 PNG whose attribution is still legible at 600 px. The request's
+`pitch`, `bearing` and `buildings3d` always win over the preset, including `0` and `false`.
+The camera centre is the requested point at any pitch, so the pin stays on the spot.
 
 Errors are JSON `{ "error": "..." }`: 400 for bad input or an unknown preset, 502 when the tile
 source fails (any tile that fails to load fails the whole render, so a half-blank image is
@@ -73,6 +86,28 @@ never returned), 503 when more than 10 renders are waiting, 504 after 30 s.
 
 Renders run **one at a time** in a single shared Chromium. The map is drawn at twice the output
 size and scaled down (smoother lines), with SwiftShader software WebGL, so no GPU is needed.
+Measured on ash in the container (2026-10-06, Mo i Rana, `X-Render-Ms`): 1200×800 flat
+2.3–2.5 s, 1200×800 with 3D buildings at pitch 50 2.0–2.7 s, 600×400 at `scale: 2` 2.2–2.6 s,
+and the worst case allowed (2400×1600, 3D, pitch 60) 6.5 s, against the 30 s cap.
+
+### Preset `render` block
+
+| Key | Meaning |
+|---|---|
+| `lineWidthScale` | multiplies every road, rail and waterway width |
+| `layers` | `includeLandcover`, `includeParks`, `includeAeroway`, … (the editor's layer switches) |
+| `marker` | `{ fill, stroke }` of the pin |
+| `label` | `{ background, text }` of the label box |
+| `attribution` | `{ color, backdrop }` of the data attribution |
+| `camera` | `{ pitch, bearing }`: the suggested camera, used when the request leaves them out |
+| `building3d` | `{ enabled, color, shade, opacity }`: `enabled` is the default for the request's `buildings3d`; `color` is the roof, `shade` the darkest wall, `opacity` 0–1 |
+
+Without a `building3d` block a preset still renders in 3D when asked: the roof is the flat
+building colour (lifted a step toward the text colour on a dark map) and the shade is the
+roof darkened toward black. MapLibre shades walls with one light, not per face, so `shade`
+is turned into the light's intensity (`buildingLight` in
+`src/features/map/infrastructure/maplibreStyle.ts`): the wall facing away from the light
+comes out at `shade`, the others in between, and its hue follows `color`.
 
 ### `GET /geocode?q=<address>&limit=5`
 

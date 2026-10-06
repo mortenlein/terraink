@@ -10,7 +10,7 @@ import { chromium, type Browser } from "playwright-core";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
-import { attributionText, type RenderInput } from "./validate";
+import { attributionText, resolveView, type RenderInput } from "./validate";
 
 export class RenderError extends Error {
   constructor(message: string, readonly status: number) {
@@ -110,6 +110,7 @@ function enqueue<T>(job: () => Promise<T>): Promise<T> {
 
 async function renderOnce(input: RenderInput): Promise<{ png: Buffer; ms: number }> {
   const [preset, attribution] = await Promise.all([loadPreset(input.preset), tileAttribution()]);
+  const view = resolveView(input, preset);
   const b = await getBrowser();
   const context = await b.newContext({ viewport: { width: 800, height: 600 } });
   const tileHost = new URL(config.tileUrl).host;
@@ -144,6 +145,10 @@ async function renderOnce(input: RenderInput): Promise<{ png: Buffer; ms: number
         preset,
         label: input.label,
         marker: input.marker,
+        pitch: view.pitch,
+        bearing: view.bearing,
+        buildings3d: view.buildings3d,
+        scale: input.scale,
         sourceUrl: config.tileUrl,
         attribution,
       }),

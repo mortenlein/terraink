@@ -55,7 +55,10 @@ const server = Bun.serve({
         const v = validateRender(body, config);
         if (!v.ok) return json({ error: v.error }, 400);
         const { png, ms } = await render(v.value);
-        console.log(`render ${v.value.preset} ${v.value.width}x${v.value.height} z${v.value.zoom} ${ms}ms ${png.length}B`);
+        const { preset, width, height, zoom, scale, pitch, bearing, buildings3d } = v.value;
+        console.log(
+          `render ${preset} ${width}x${height}@${scale}x z${zoom} p${pitch ?? "-"} b${bearing ?? "-"} 3d:${buildings3d ?? "-"} ${ms}ms ${png.length}B`,
+        );
         return new Response(png, {
           headers: { "Content-Type": "image/png", "X-Render-Ms": String(ms), "Cache-Control": "no-store" },
         });

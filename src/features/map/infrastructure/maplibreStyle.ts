@@ -1,7 +1,7 @@
 import type { ResolvedTheme } from "@/features/theme/domain/types";
 import { MAP_OVERZOOM_SCALE } from "@/features/map/infrastructure/constants";
-import { blendHex } from "@/shared/utils/color";
-import type { StyleSpecification } from "maplibre-gl";
+import { blendHex, parseHex } from "@/shared/utils/color";
+import type { LightSpecification, StyleSpecification } from "maplibre-gl";
 
 const OPENFREEMAP_SOURCE = "https://tiles.openfreemap.org/planet";
 const SOURCE_ID = "openfreemap";
@@ -17,6 +17,50 @@ const BUILDING_FILL_OPACITY = 0.84;
 const MAP_BUILDING_MIN_ZOOM_DEFAULT = 8;
 const MAP_BUILDING_MIN_ZOOM_PRESERVE = 8.2;
 const DETAIL_PRESERVE_DISTANCE_METERS = 30_000;
+
+/**
+ * Extruded buildings (headless renders with `buildings3d`). OpenMapTiles'
+ * building layer carries render_height / render_min_height in metres; a
+ * feature without them gets a low two-storey block rather than vanishing.
+ */
+const BUILDING_3D_FALLBACK_HEIGHT_M = 6;
+/** Light from above and slightly behind the viewer's left shoulder, in viewport terms. */
+const BUILDING_3D_LIGHT_AZIMUTH = 210;
+const BUILDING_3D_LIGHT_POLAR = 30;
+
+export interface Building3dStyle {
+  /** Roof colour (and the base colour MapLibre shades the walls from). */
+  color: string;
+  /** Colour of the darkest wall, the one facing away from the light. */
+  shade: string;
+  /** Layer opacity, 0-1. */
+  opacity: number;
+}
+
+/** Luminance the way MapLibre's fill-extrusion shader weighs a colour (sRGB values, not linearised). */
+export function shaderLuminance(hex: string): number {
+  const rgb = parseHex(hex);
+  if (!rgb) return 0.5;
+  return (rgb.r * 0.2126 + rgb.g * 0.7152 + rgb.b * 0.0722) / 255;
+}
+
+/**
+ * MapLibre shades extrusion walls by one global light rather than by colour:
+ * a wall facing away from the light comes out at color * (1 - intensity)
+ * (fill_extrusion.vertex.glsl, maplibre-gl 5.19). Solving for the intensity
+ * makes that wall match the preset's `shade`, so presets speak in colours.
+ */
+export function buildingLight(style: Building3dStyle): LightSpecification {
+  const roof = shaderLuminance(style.color);
+  const wall = shaderLuminance(style.shade);
+  const intensity = roof > 0 ? Math.max(0, Math.min(1, 1 - wall / roof)) : 0.5;
+  return {
+    anchor: "viewport",
+    color: "#ffffff",
+    intensity: Number(intensity.toFixed(3)),
+    position: [1.15, BUILDING_3D_LIGHT_AZIMUTH, BUILDING_3D_LIGHT_POLAR],
+  };
+}
 
 const MAP_WATERWAY_WIDTH_STOPS: [number, number][] = [
   [0, 0.2],
@@ -204,6 +248,8 @@ export function generateMapStyle(
     sourceUrl?: string;
     /** Multiplies every line width (headless renders tune legibility per preset). */
     lineWidthScale?: number;
+    /** Draw buildings as extruded blocks instead of flat footprints. */
+    buildings3d?: Building3dStyle;
   },
 ): StyleSpecification {
   const buildingFill =
@@ -225,6 +271,7 @@ export function generateMapStyle(
   const includeRoadMinorLow = options?.includeRoadMinorLow ?? true;
   const includeRoadOutline = options?.includeRoadOutline ?? true;
   const buildingMinZoom = resolveBuildingMinZoom(options?.distanceMeters);
+  const buildings3d = includeBuildings ? options?.buildings3d : undefined;
   const lineScale = options?.lineWidthScale ?? 1;
   const widthExpr = (stops: [number, number][]) =>
     baseWidthExpr(scaledStops(stops, lineScale));
@@ -279,7 +326,7 @@ export function generateMapStyle(
   const roadPathColor = theme.map.roads.path;
   const roadOutlineColor = theme.map.roads.outline;
 
-  return {
+  const style: StyleSpecification = {
     version: 8,
     sources: {
       [SOURCE_ID]: {
@@ -370,7 +417,8 @@ export function generateMapStyle(
         "source-layer": "building",
         type: "fill" as const,
         minzoom: buildingMinZoom,
-        layout: { visibility: includeBuildings ? ("visible" as const) : ("none" as const) },
+        // With extrusions on, the roofs cover the footprints: skip the flat fill.
+        layout: { visibility: includeBuildings && !buildings3d ? ("visible" as const) : ("none" as const) },
         paint: {
           "fill-color": buildingFill,
           "fill-opacity": BUILDING_FILL_OPACITY,
@@ -697,4 +745,27 @@ export function generateMapStyle(
       },
     ],
   };
+
+  if (buildings3d) {
+    // Last, so the blocks stand on top of the roads they hide.
+    style.layers.push({
+      id: "building-3d",
+      source: SOURCE_ID,
+      "source-layer": "building",
+      type: "fill-extrusion",
+      minzoom: buildingMinZoom,
+      // building:part outlines that duplicate their parent are flagged hide_3d.
+      filter: ["!=", ["get", "hide_3d"], true],
+      paint: {
+        "fill-extrusion-color": buildings3d.color,
+        "fill-extrusion-height": ["coalesce", ["get", "render_height"], BUILDING_3D_FALLBACK_HEIGHT_M],
+        "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0],
+        "fill-extrusion-opacity": buildings3d.opacity,
+        "fill-extrusion-vertical-gradient": true,
+      },
+    });
+    style.light = buildingLight(buildings3d);
+  }
+
+  return style;
 }

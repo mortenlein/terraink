@@ -155,7 +155,7 @@ function resolveBuildingMinZoom(distanceMeters?: number): number {
   return MAP_BUILDING_MIN_ZOOM_DEFAULT;
 }
 
-function widthExpr(stops: [number, number][]): any {
+function baseWidthExpr(stops: [number, number][]): any {
   const flat = stops.flatMap(([zoom, width]) => [zoom, width]);
   return ["interpolate", ["linear"], ["zoom"], ...flat];
 }
@@ -200,6 +200,10 @@ export function generateMapStyle(
     includeRoadMinorLow?: boolean;
     includeRoadOutline?: boolean;
     distanceMeters?: number;
+    /** TileJSON URL of an OpenMapTiles-schema vector source; OpenFreeMap by default. */
+    sourceUrl?: string;
+    /** Multiplies every line width (headless renders tune legibility per preset). */
+    lineWidthScale?: number;
   },
 ): StyleSpecification {
   const buildingFill =
@@ -221,6 +225,9 @@ export function generateMapStyle(
   const includeRoadMinorLow = options?.includeRoadMinorLow ?? true;
   const includeRoadOutline = options?.includeRoadOutline ?? true;
   const buildingMinZoom = resolveBuildingMinZoom(options?.distanceMeters);
+  const lineScale = options?.lineWidthScale ?? 1;
+  const widthExpr = (stops: [number, number][]) =>
+    baseWidthExpr(scaledStops(stops, lineScale));
 
   const minorHighCasingStops = scaledStops(
     MAP_ROAD_MINOR_HIGH_DETAIL_WIDTH_STOPS,
@@ -277,7 +284,7 @@ export function generateMapStyle(
     sources: {
       [SOURCE_ID]: {
         type: "vector",
-        url: OPENFREEMAP_SOURCE,
+        url: options?.sourceUrl || OPENFREEMAP_SOURCE,
         maxzoom: SOURCE_MAX_ZOOM,
       },
     },

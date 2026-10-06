@@ -1,0 +1,14 @@
+{
+  "name": "map-render-server",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "description": "Headless render and geocoding API around the map app (see ../README.md).",
+  "scripts": {
+    "start": "bun index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "playwright-core": "1.63.0"
+  }
+}

@@ -1,5 +1,5 @@
 import maplibregl from "maplibre-gl";
-import type { Map as MaplibreMap } from "maplibre-gl";
+import type { Map as MaplibreMap, StyleSpecification } from "maplibre-gl";
 import type { MarkerProjectionInput } from "@/features/markers/domain/types";
 import {
   waitForMapIdle,
@@ -41,6 +41,37 @@ export async function captureMapAsCanvas(
     markerSizeScale,
   } = resolveExportRenderParams(map, exportWidth, exportHeight);
 
+  const canvas = await renderStyleToCanvas(
+    { style, center, zoom, pitch, bearing, renderWidth, renderHeight, pixelRatio },
+    exportWidth,
+    exportHeight,
+  );
+  return { canvas, markerProjection, markerScaleX, markerScaleY, markerSizeScale };
+}
+
+export interface OffscreenRenderParams {
+  style: StyleSpecification;
+  center: { lng: number; lat: number };
+  zoom: number;
+  pitch: number;
+  bearing: number;
+  renderWidth: number;
+  renderHeight: number;
+  pixelRatio: number;
+}
+
+/**
+ * Renders a style into a hidden offscreen map and draws the result into a
+ * 2D canvas of the export size. Split out of captureMapAsCanvas so the
+ * headless render page (src/render/main.ts) takes the same path as the
+ * interactive export, without needing a live preview map first.
+ */
+export async function renderStyleToCanvas(
+  params: OffscreenRenderParams,
+  exportWidth: number,
+  exportHeight: number,
+): Promise<HTMLCanvasElement> {
+  const { style, center, zoom, pitch, bearing, renderWidth, renderHeight, pixelRatio } = params;
   const offscreenContainer = createOffscreenContainer(renderWidth, renderHeight);
   document.body.appendChild(offscreenContainer);
 
@@ -73,7 +104,7 @@ export async function captureMapAsCanvas(
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(glCanvas, 0, 0, exportWidth, exportHeight);
 
-    return { canvas: exportCanvas, markerProjection, markerScaleX, markerScaleY, markerSizeScale };
+    return exportCanvas;
   } finally {
     exportMap.remove();
     offscreenContainer.remove();

@@ -1,0 +1,31 @@
+{
+  "$comment": "Flat two-tone map on paper, from Gable's `warm` theme, light scheme (gable app/src/lib/sites/theme-presets.json, 2026-10-06): paper #faf6f0, tint #f2eadf, line #e4d9ca, line-strong #8c7d6f, ink-2 #5c5045, ink #1c1712, accent #a3441c, on-panel #fbf6ef. Gable owns presets; this file is the starting point.",
+  "name": "paper-warm",
+  "description": "Ink roads on warm paper; water and buildings as quiet tints.",
+  "ui": { "bg": "#faf6f0", "text": "#1c1712" },
+  "map": {
+    "land": "#faf6f0",
+    "landcover": "#faf6f0",
+    "water": "#e4d9ca",
+    "waterway": "#e4d9ca",
+    "parks": "#faf6f0",
+    "buildings": "#f2eadf",
+    "aeroway": "#f2eadf",
+    "rail": "#8c7d6f",
+    "roads": {
+      "major": "#1c1712",
+      "minor_high": "#5c5045",
+      "minor_mid": "#8c7d6f",
+      "minor_low": "#8c7d6f",
+      "path": "#8c7d6f",
+      "outline": "#faf6f0"
+    }
+  },
+  "render": {
+    "lineWidthScale": 0.6,
+    "layers": { "includeLandcover": false, "includeParks": false, "includeAeroway": false },
+    "marker": { "fill": "#a3441c", "stroke": "#faf6f0" },
+    "label": { "background": "#1c1712", "text": "#fbf6ef" },
+    "attribution": { "color": "#5c5045", "backdrop": "#faf6f0" }
+  }
+}

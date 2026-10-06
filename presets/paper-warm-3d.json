@@ -1,0 +1,57 @@
+{
+  "$comment": "paper-warm with extruded buildings and a tilted camera (gable-maps 2026-10-06). Same palette as paper-warm: roofs in the paper tint #f2eadf, the shaded wall #bcae9c halfway between line-strong #8c7d6f and line #e4d9ca; roads 0.8 instead of 0.6 so they hold up under the blocks. render.camera is a suggestion the request's pitch/bearing override; render.building3d.enabled is the default the request's buildings3d overrides.",
+  "name": "paper-warm-3d",
+  "description": "paper-warm with buildings as warm blocks, seen at an angle.",
+  "ui": {
+    "bg": "#faf6f0",
+    "text": "#1c1712"
+  },
+  "map": {
+    "land": "#faf6f0",
+    "landcover": "#faf6f0",
+    "water": "#e4d9ca",
+    "waterway": "#e4d9ca",
+    "parks": "#faf6f0",
+    "buildings": "#f2eadf",
+    "aeroway": "#f2eadf",
+    "rail": "#8c7d6f",
+    "roads": {
+      "major": "#1c1712",
+      "minor_high": "#5c5045",
+      "minor_mid": "#8c7d6f",
+      "minor_low": "#8c7d6f",
+      "path": "#8c7d6f",
+      "outline": "#faf6f0"
+    }
+  },
+  "render": {
+    "lineWidthScale": 0.8,
+    "layers": {
+      "includeLandcover": false,
+      "includeParks": false,
+      "includeAeroway": false
+    },
+    "marker": {
+      "fill": "#a3441c",
+      "stroke": "#faf6f0"
+    },
+    "label": {
+      "background": "#1c1712",
+      "text": "#fbf6ef"
+    },
+    "attribution": {
+      "color": "#5c5045",
+      "backdrop": "#faf6f0"
+    },
+    "camera": {
+      "pitch": 50,
+      "bearing": -20
+    },
+    "building3d": {
+      "enabled": true,
+      "color": "#f2eadf",
+      "shade": "#bcae9c",
+      "opacity": 1
+    }
+  }
+}

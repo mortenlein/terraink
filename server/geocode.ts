@@ -65,12 +65,14 @@ const COUNTRY_WORDS = new Set(["norge", "norway", "noreg"]);
 /**
  * The normalised query as Kartverket's `sok` wants it: no trailing country word, and a standalone
  * "gt."/"gt" spelled out as "gate" (the register has no abbreviations; "karl johans gt 1 oslo" finds
- * nothing, 2026-11-08). Joined forms ("kirkegt.") are not guessed at.
+ * nothing, 2026-11-08), and a house letter joined to its number. Joined abbreviations ("kirkegt.")
+ * are not guessed at.
  */
 export function kartverketQuery(normalised: string): string {
   const words = normalised.split(" ").filter(Boolean).map((w) => (w === "gt" || w === "gt." ? "gate" : w));
   while (words.length > 1 && COUNTRY_WORDS.has(words[words.length - 1].replace(/\.$/, ""))) words.pop();
-  return words.join(" ");
+  // "2 b" -> "2b": the register's house letter only matches joined to its number (2026-11-08).
+  return words.join(" ").replace(/(^| )(\d+) ([a-zæøå])(?= |$)/gu, "$1$2$3");
 }
 
 interface KartverketAddress {
@@ -108,7 +110,10 @@ export function addressWords(text: string): string[] {
     .normalize("NFC")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}/]+/gu, " ")
-    .replace(/\b(\d+) ([a-zæøå])\b/gu, "$1$2")
+    .split(" ")
+    .filter(Boolean)
+    .join(" ")
+    .replace(/(^| )(\d+) ([a-zæøå])(?= |$)/gu, "$1$2$3")
     .split(" ")
     .filter(Boolean);
 }

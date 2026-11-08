@@ -40,6 +40,10 @@ describe("kartverketQuery", () => {
     expect(kartverketQuery("karl johans gt 1 oslo")).toBe("karl johans gate 1 oslo");
     expect(kartverketQuery("gtx 1")).toBe("gtx 1");
   });
+  test("joins a house letter to its number (Kartverket finds 'storgata 2b brevik', not '2 b')", () => {
+    expect(kartverketQuery("storgata 2 b brevik")).toBe("storgata 2b brevik");
+    expect(kartverketQuery("storgata 2b brevik")).toBe("storgata 2b brevik");
+  });
 });
 
 describe("geocode", () => {

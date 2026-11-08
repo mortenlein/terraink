@@ -85,7 +85,8 @@ test("normaliseQuery folds case, commas and whitespace", () => {
   expect(normaliseQuery("  Storgata 1,  Mo i Rana ")).toBe(normaliseQuery("storgata 1 mo i rana"));
 });
 
-test("attributionText reads OpenFreeMap's TileJSON attribution", () => {
-  const html = '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
-  expect(attributionText(html)).toBe("OpenFreeMap © OpenMapTiles Data from OpenStreetMap");
+test("attributionText reads our tile service's TileJSON attribution", () => {
+  // Verbatim from gable-maps-tiles' /catalog (planetiler's OpenMapTiles profile via martin), 2026-11-08.
+  const html = '<a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>';
+  expect(attributionText(html)).toBe("© OpenMapTiles © OpenStreetMap contributors");
 });

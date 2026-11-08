@@ -11,10 +11,14 @@
 # last good data. Cadence is not decided; the OSM extract changes daily, a map of streets and places
 # needs it rarely (judgement: monthly is plenty).
 #
-# Disk: the budget is 10 GB in all (ashguard's hosting go, 2026-11-08). The build scratch lives in
-# <out>/.build-*, is watched while planetiler runs (killed above BUILD_LIMIT_KB) and is removed on any
-# exit, green or red. Planetiler runs as the calling user so everything it writes can be removed
-# without root. The planetiler image is removed at the end (KEEP_PLANETILER_IMAGE=1 keeps it).
+# Disk: the budget is 10 GB in all (ashguard's hosting go, 2026-11-08), the tiles being replaced
+# included. The build scratch lives in <out>/.build-*; the whole of <out> is watched while planetiler
+# runs (planetiler is killed above BUDGET_KB) and the scratch is removed on any exit, green or red.
+# Measured 2026-11-08 with planetiler's defaults: the scratch peaked at 9.1 GiB (node map 2.0 GB and
+# multipolygons 0.9 GB on disk, temp features 4.8 GB, the four inputs 2.8 GB kept to the end), over
+# budget beside a 2.1 GB old output. Hence --storage=ram (node map and multipolygons in the heap,
+# -Xmx10g) and --compress_temp. Planetiler runs as the calling user so everything it writes can be
+# removed without root. The planetiler image is removed at the end (KEEP_PLANETILER_IMAGE=1 keeps it).
 set -euo pipefail
 
 PLANETILER_IMAGE="ghcr.io/onthegomap/planetiler:0.10.2"
@@ -29,7 +33,7 @@ declare -A NOTO_SHA256=(
 OFL_URL="https://raw.githubusercontent.com/notofonts/latin-greek-cyrillic/4bc63d7ebca1faed49c6c685f380ba0abc2c1941/OFL.txt"
 OFL_SHA256=cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a
 
-BUILD_LIMIT_KB=$((9 * 1024 * 1024)) # 9 GiB of scratch: the 10 GB budget less the output being replaced
+BUDGET_KB=$((9500 * 1000 * 1000 / 1024)) # 9.5 GB for all of <out>: 10 GB less a margin for the 5 s sampling
 BUILD_NAME="gable-maps-tiles-build"
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -59,20 +63,28 @@ echo "$OFL_SHA256  $scratch/fonts/OFL.txt" | sha256sum -c --quiet -
 # The ocean: planetiler's own download of water polygons fails when osmdata.openstreetmap.de is
 # unreachable (it was from saman on 2026-11-08: "No route to host"). Fetched here first so a
 # fallback can be named: WATER_POLYGONS_URL overrides the official file (an archived copy is
-# acceptable; coastlines change slowly). Planetiler skips a download whose file is already there.
-WATER_POLYGONS_URL="${WATER_POLYGONS_URL:-https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip}"
-echo "water polygons from $WATER_POLYGONS_URL"
-curl -fsSL --retry 3 --connect-timeout 20 -o "$scratch/sources/water-polygons-split-3857.zip" "$WATER_POLYGONS_URL"
+# acceptable; coastlines change slowly), or WATER_POLYGONS_FILE names a copy already on disk, which
+# is moved in (not copied: it would count twice). Planetiler skips a download whose file is there.
+water="$scratch/sources/water-polygons-split-3857.zip"
+if [[ -n "${WATER_POLYGONS_FILE:-}" ]]; then
+  echo "water polygons from $WATER_POLYGONS_FILE (moved in)"
+  mv "$WATER_POLYGONS_FILE" "$water"
+else
+  WATER_POLYGONS_URL="${WATER_POLYGONS_URL:-https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip}"
+  echo "water polygons from $WATER_POLYGONS_URL"
+  curl -fsSL --retry 3 --connect-timeout 20 -o "$water" "$WATER_POLYGONS_URL"
+fi
+python3 -I -c 'import sys, zipfile; bad = zipfile.ZipFile(sys.argv[1]).testzip(); sys.exit(f"corrupt member {bad}" if bad else 0)' "$water"
 
-# Watchdog: the scratch must never grow past the budget. The peak is kept for the log.
+# Watchdog: <out> (old output + scratch) must never grow past the budget. The peak is kept for the log.
 peak_file="$scratch/.peak-kb"
 echo 0 > "$peak_file"
 (
   while sleep 5; do
-    kb=$(du -sk "$scratch" 2>/dev/null | cut -f1)
+    kb=$(du -sk "$out" 2>/dev/null | cut -f1)
     (( kb > $(cat "$peak_file") )) && echo "$kb" > "$peak_file"
-    if (( kb > BUILD_LIMIT_KB )); then
-      echo "build-tiles: scratch at ${kb} KB, over ${BUILD_LIMIT_KB} KB: stopping planetiler" >&2
+    if (( kb > BUDGET_KB )); then
+      echo "build-tiles: $out at ${kb} KB, over ${BUDGET_KB} KB: stopping planetiler" >&2
       docker kill "$BUILD_NAME" >/dev/null 2>&1 || true
       exit 1
     fi
@@ -82,17 +94,17 @@ watch_pid=$!
 
 docker run --rm --name "$BUILD_NAME" --label com.gable.project=gable-maps-tiles \
   --user "$(id -u):$(id -g)" \
-  -e JAVA_TOOL_OPTIONS="-Xmx6g" \
+  -e JAVA_TOOL_OPTIONS="-Xmx10g" \
   -v "$scratch:/work" \
   "$PLANETILER_IMAGE" \
   --area=norway --download --download_dir=/work/sources --tmpdir=/work/tmp \
-  --output=/work/norway.mbtiles --force \
+  --output=/work/norway.mbtiles --force --storage=ram --compress_temp=true \
   --free_water_polygons_after_read=true --free_natural_earth_after_read=true \
   --free_lake_centerlines_after_read=true --free_osm_after_read=true
 
 kill "$watch_pid" 2>/dev/null || true
 watch_pid=""
-echo "scratch peak: $(( $(cat "$peak_file") / 1024 )) MB (sampled every 5 s)"
+echo "peak of $out during the build: $(( $(cat "$peak_file") * 1024 / 1000000 )) MB (sampled every 5 s; budget $(( BUDGET_KB * 1024 / 1000000 )) MB)"
 
 # Swap in: same filesystem, so each rename is atomic.
 rm -rf "$out/fonts.new" && mv "$scratch/fonts" "$out/fonts.new"

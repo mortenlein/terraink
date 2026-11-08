@@ -212,11 +212,17 @@ OpenFreeMap's public planet and public Nominatim.
 - **Refresh:** run `infra/build-tiles.sh` again, then
   `docker compose -f infra/compose.yml restart tiles`. The new file replaces the old only after
   a whole build succeeded. No cadence is set (judgement: monthly is plenty for streets).
-- **Water polygons:** planetiler downloads them from osmdata.openstreetmap.de. That host was
-  unreachable from saman on 2026-11-08, and `WATER_POLYGONS_URL` names another copy (the first
-  build used the Wayback Machine's 2026-01-07 copy of the same file).
-- **Disk:** at most 10 GB in all (the hosting go). The build's scratch is watched and stopped
-  above 9 GiB, then removed.
+- **Water polygons:** fetched from osmdata.openstreetmap.de. That host was unreachable from
+  saman on 2026-11-08 ("No route to host"), so `WATER_POLYGONS_URL` names another copy, or
+  `WATER_POLYGONS_FILE` one already on disk (moved in); the zip is checked member by member.
+  The 2026-11-08 build used the Wayback Machine's 2026-01-07 copy
+  (`https://web.archive.org/web/20260107000623id_/https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip`,
+  907 893 588 bytes; it serves ~200 KB/s, so it was fetched in 16 parallel byte ranges).
+- **Disk:** at most 10 GB in all (the hosting go), the old tiles included. The build watches
+  all of `infra/tiles/` and stops planetiler above 9.5 GB; the scratch is removed on any exit.
+  Measured 2026-11-08: 2.1 GB of tiles and fonts at rest, a 7.2 GB peak during a rebuild
+  (with `--storage=ram --compress_temp`, 10 GB Java heap; planetiler's defaults peaked at
+  9.1 GiB of scratch alone). The build takes about 15 minutes on saman.
 
 ## Configuration
 

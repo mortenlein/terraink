@@ -1,7 +1,8 @@
 # The map renderer and its tile service on saman (Gable's port block 8210-8219; foundation
 # hosts/saman/ports.tsv: maps 8215, tiles 8216). Loopback only: nothing outside the host reaches
 # either, and neither has auth.
-#   infra/build-tiles.sh                          # once, and to refresh: the tile data (infra/tiles/)
+#   infra/build-tiles.sh                          # once: the tile data (infra/tiles/)
+#   infra/refresh-tiles.sh                        # to refresh it under the running service
 #   docker compose -f infra/compose.yml up -d --build
 # Settings in infra/.env (gitignored; template infra/.env.example).
 name: gable-maps

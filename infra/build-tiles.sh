@@ -96,7 +96,7 @@ else
   if ! curl -fsSL --retry 3 --connect-timeout 20 -o "$water" "$WATER_POLYGONS_URL" || ! zip_ok "$water"; then
     rm -f "$water"
     [[ -f "$water_cache" ]] || { echo "build-tiles: water polygons download failed and there is no $water_cache" >&2; exit 1; }
-    echo "water polygons download failed: using the kept copy $water_cache ($(date -u -r "$water_cache" +%F))"
+    echo "water polygons download failed: using the kept copy $water_cache (saved $(date -u -r "$water_cache" +%F); the data can be older)"
     ln "$water_cache" "$water"
   fi
 fi

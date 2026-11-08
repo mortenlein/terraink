@@ -232,9 +232,10 @@ OpenFreeMap's public planet and public Nominatim.
   the download fails, so a refresh does not need that host or the archive.
 - **Disk:** at most 10 GB in all (the hosting go), the old tiles included. The build watches
   all of `infra/tiles/` and stops planetiler above 9.5 GB; the scratch is removed on any exit.
-  Measured 2026-11-08: 2.1 GB of tiles and fonts at rest, a 7.2 GB peak during a rebuild
-  (with `--storage=ram --compress_temp`, 10 GB Java heap; planetiler's defaults peaked at
-  9.1 GiB of scratch alone). The build takes about 15 minutes on saman.
+  Measured 2026-11-08 by the first `refresh-tiles.sh` run: 3.0 GB at rest (2.2 GB tiles, 0.9 GB
+  kept water zip, fonts), a 7.7 GB peak during the build (`--storage=ram --compress_temp`, 10 GB
+  Java heap; planetiler's defaults peaked at 9.1 GiB of scratch alone), 5.0 GB with the new file
+  staged beside the live one. The refresh took 10 minutes on saman.
 
 ## Configuration
 

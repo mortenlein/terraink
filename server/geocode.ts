@@ -17,7 +17,8 @@
  *
  * Kartverket's `sok` ANDs every word, so a word that is in no address field gives zero hits. Gable
  * sends "<address>, Norge" (gable app/src/components/edit/sections.tsx): the country is dropped.
- * A query without any number is answered with no hit (see geocode()).
+ * A query without any number is answered with no hit, and a hit whose own street and number are
+ * not in the query is dropped (geocode(), hitMatchesQuery): no answer is better than a wrong pin.
  * The answer keeps the shape Gable reads (gable app/src/lib/edit/geocode.ts firstHit):
  * { query, cached, results: [{ lat, lng, displayName, type }] }, plus `attribution`.
  * Coordinates are EUREF89 (EPSG:4258), within a metre of WGS84 in Norway.
@@ -74,6 +75,7 @@ export function kartverketQuery(normalised: string): string {
 
 interface KartverketAddress {
   adressetekst?: string;
+  adressetekstutenadressetilleggsnavn?: string;
   postnummer?: string;
   poststed?: string;
   objtype?: string;
@@ -90,11 +92,42 @@ export function toResult(a: KartverketAddress): GeocodeResult | null {
   return { lat, lng, displayName, type: a.objtype ?? "" };
 }
 
-export function parseAddresses(body: unknown): GeocodeResult[] {
+function addressRows(body: unknown): KartverketAddress[] {
   const rows = body && typeof body === "object" ? (body as { adresser?: unknown }).adresser : null;
   if (!Array.isArray(rows)) throw new GeocodeError("Kartverket answered without an adresser list", 502);
-  return rows.map((r) => toResult((r ?? {}) as KartverketAddress)).filter((r): r is GeocodeResult => r !== null);
+  return rows.map((r) => (r ?? {}) as KartverketAddress);
 }
+
+export function parseAddresses(body: unknown): GeocodeResult[] {
+  return addressRows(body).map(toResult).filter((r): r is GeocodeResult => r !== null);
+}
+
+/** Words for comparing an address with a query: lower case, no punctuation, "6 b" joined as "6b". */
+export function addressWords(text: string): string[] {
+  return text
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}/]+/gu, " ")
+    .replace(/\b(\d+) ([a-zæøå])\b/gu, "$1$2")
+    .split(" ")
+    .filter(Boolean);
+}
+
+/**
+ * Whether a hit's own address (street and number, or gnr/bnr) is in the query, word for word.
+ * Kartverket's `sok` also matches a number against other fields: "storgata 1 porsgrunn" is answered
+ * with Storgata 2 in Brevik, and "8622 mo i rana" with a random cadastral 20/440 (2026-11-08). A hit
+ * that fails this is not what was asked for, and a wrong pin is worse than none.
+ */
+export function hitMatchesQuery(row: KartverketAddress, sok: string): boolean {
+  const own = addressWords(row.adressetekstutenadressetilleggsnavn ?? row.adressetekst ?? "");
+  if (!own.length) return false;
+  const asked = new Set(addressWords(sok));
+  return own.every((w) => asked.has(w));
+}
+
+/** Hits asked for before the filter, so a right second hit survives a wrong first one. */
+const SOK_PAGE = 10;
 
 let nextSlot = 0;
 let gate: Promise<unknown> = Promise.resolve();
@@ -115,11 +148,12 @@ function throttled<T>(minIntervalMs: number, job: () => Promise<T>): Promise<T> 
 }
 
 /**
- * The provider is in the key: the cache volume still holds 30 days of Nominatim answers from
- * before 2026-11-08, and those must never be served as Kartverket's.
+ * The provider and the answer's rules are in the key: the cache volume still holds 30 days of
+ * Nominatim answers from before 2026-11-08, and Kartverket answers cached before the hit filter
+ * (v2, hitMatchesQuery) the same day; neither may be served.
  */
 function cacheFile(dir: string, key: string): string {
-  return path.join(dir, `${createHash("sha256").update(`kartverket|${key}`).digest("hex")}.json`);
+  return path.join(dir, `${createHash("sha256").update(`kartverket-v2|${key}`).digest("hex")}.json`);
 }
 
 async function cachedAsk(
@@ -173,9 +207,13 @@ export async function geocode(q: string, limit: number, deps: GeocodeDeps = {}):
   const answer = await cachedAsk(`sok|${sok}|${limit}`, deps, async (fetchImpl, base) => {
     const url = new URL(`${base}/sok`);
     url.searchParams.set("sok", sok);
-    url.searchParams.set("treffPerSide", String(limit));
+    url.searchParams.set("treffPerSide", String(Math.max(limit, SOK_PAGE)));
     url.searchParams.set("utkoordsys", "4258");
-    return parseAddresses(await getJson(fetchImpl, url));
+    return addressRows(await getJson(fetchImpl, url))
+      .filter((row) => hitMatchesQuery(row, sok))
+      .map(toResult)
+      .filter((r): r is GeocodeResult => r !== null)
+      .slice(0, limit);
   });
   return { query: sok, ...answer, attribution: GEOCODE_ATTRIBUTION };
 }

@@ -54,7 +54,7 @@ describe("geocode", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].origin + calls[0].pathname).toBe(`${BASE}/sok`);
     expect(calls[0].searchParams.get("sok")).toBe("ole tobias olsens gate 6 8622 mo i rana");
-    expect(calls[0].searchParams.get("treffPerSide")).toBe("1");
+    expect(calls[0].searchParams.get("treffPerSide")).toBe("10");
     expect(calls[0].searchParams.get("utkoordsys")).toBe("4258");
     expect(r.cached).toBe(false);
     expect(r.attribution).toBe("© Kartverket (CC BY 4.0)");
@@ -98,6 +98,34 @@ describe("geocode", () => {
     const r = await geocode("Mo i Rana, Norge", 1, { fetchImpl, baseUrl: BASE, cacheDir: freshCache(), minIntervalMs: 0 });
     expect(r.results).toEqual([]);
     expect(calls).toHaveLength(0);
+  });
+
+  test("a hit whose street and number are not in the query is dropped (no wrong pin)", async () => {
+    // Recorded 2026-11-08: "storgata 1 porsgrunn" is answered with Storgata 2 and 2B in Brevik
+    // (sok matches loose numbers against other fields), "8622 mo i rana" with 1 059 addresses,
+    // the first a cadastral 20/440. Neither may become a pin.
+    for (const [q, name] of [
+      ["Storgata 1, Porsgrunn, Norge", "kartverket-sok-storgata-1-porsgrunn.json"],
+      ["8622 Mo i Rana, Norge", "kartverket-sok-8622-mo-i-rana.json"],
+    ]) {
+      const { fetchImpl } = recorder(fixture(name));
+      const r = await geocode(q, 1, { fetchImpl, baseUrl: BASE, cacheDir: freshCache(), minIntervalMs: 0 });
+      expect(r.results).toEqual([]);
+    }
+  });
+
+  test("asks for more hits than it returns, so a right second hit survives a wrong first", async () => {
+    const { calls, fetchImpl } = recorder(fixture("kartverket-sok-8622-mo-i-rana.json"));
+    const r = await geocode("Almveien 12, 8622 Mo i Rana", 1, { fetchImpl, baseUrl: BASE, cacheDir: freshCache(), minIntervalMs: 0 });
+    expect(Number(calls[0].searchParams.get("treffPerSide"))).toBeGreaterThanOrEqual(10);
+    expect(r.results.map((x) => x.displayName)).toEqual(["Almveien 12, 8622 MO I RANA"]);
+  });
+
+  test("a letter written apart from the number still matches (6 b = 6B)", async () => {
+    const body = fixture("kartverket-sok-storgata-1-porsgrunn.json");
+    const { fetchImpl } = recorder(body);
+    const r = await geocode("Storgata 2 b, Brevik", 5, { fetchImpl, baseUrl: BASE, cacheDir: freshCache(), minIntervalMs: 0 });
+    expect(r.results.map((x) => x.displayName)).toEqual(["Storgata 2B, 3950 BREVIK"]);
   });
 
   test("an empty or overlong query is a 400 and never calls out", async () => {

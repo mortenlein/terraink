@@ -211,15 +211,25 @@ OpenFreeMap's public planet and public Nominatim.
   0.10.2's OpenMapTiles profile into `infra/tiles/norway.mbtiles` (gitignored and
   dockerignored), and fetches Noto Sans Regular, Bold and Italic (OFL 1.1) into
   `infra/tiles/fonts/`. Norway only: a render outside Norway is ocean and Natural Earth.
-- **Refresh:** run `infra/build-tiles.sh` again, then
-  `docker compose -f infra/compose.yml restart tiles`. The new file replaces the old only after
-  a whole build succeeded. No cadence is set (judgement: monthly is plenty for streets).
+- **Refresh:** `infra/refresh-tiles.sh`, safe unattended (cron). It refuses to start under
+  20 GB free on the tiles filesystem or at a 1-minute load of 8 or more, takes the lock
+  `infra/tiles/.refresh.lock` (shared with `build-tiles.sh`), builds into
+  `norway.mbtiles.new`, checks it (`infra/check-mbtiles.py`: size against the live file, metadata,
+  the OSM date not older, known tiles in Mo i Rana and Oslo), swaps it in with one rename and
+  restarts `gable-maps-tiles` (martin has no reload and keeps serving the file it opened, proven in
+  the tests), then checks `/health`, `/catalog` and a tile and rolls back to the old file if that
+  fails. The last line is `refresh-tiles: OK <bytes> <seconds>` or `refresh-tiles: FAIL <reason>`;
+  exit codes in the script's header. Tests: `infra/test-refresh-tiles.sh` (a throwaway martin
+  on fixtures, never the live service). The restart costs a few seconds of tiles. No cadence is
+  set yet (judgement: monthly is plenty for streets).
 - **Water polygons:** fetched from osmdata.openstreetmap.de. That host was unreachable from
   saman on 2026-11-08 ("No route to host"), so `WATER_POLYGONS_URL` names another copy, or
   `WATER_POLYGONS_FILE` one already on disk (moved in); the zip is checked member by member.
   The 2026-11-08 build used the Wayback Machine's 2026-01-07 copy
   (`https://web.archive.org/web/20260107000623id_/https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip`,
   907 893 588 bytes; it serves ~200 KB/s, so it was fetched in 16 parallel byte ranges).
+  The last good zip is kept in `infra/tiles/cache/` (0.9 GB, inside the budget) and used when
+  the download fails, so a refresh does not need that host or the archive.
 - **Disk:** at most 10 GB in all (the hosting go), the old tiles included. The build watches
   all of `infra/tiles/` and stops planetiler above 9.5 GB; the scratch is removed on any exit.
   Measured 2026-11-08: 2.1 GB of tiles and fonts at rest, a 7.2 GB peak during a rebuild

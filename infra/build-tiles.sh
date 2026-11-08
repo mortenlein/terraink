@@ -6,10 +6,11 @@
 #   infra/build-tiles.sh [out-dir]        # default: infra/tiles (gitignored, dockerignored)
 #
 # Decided by Morten 2026-11-07 (gable DECISIONS.md): our own tiles, not OpenFreeMap's public planet.
-# Refreshing: run this again, then `docker compose -f infra/compose.yml restart tiles`. The old file is
-# replaced only after a whole build succeeded (rename on the same disk), so a failed build serves the
-# last good data. Cadence is not decided; the OSM extract changes daily, a map of streets and places
-# needs it rarely (judgement: monthly is plenty).
+# This script is the first build. Refreshing a running service is infra/refresh-tiles.sh, which runs
+# this with TILES_STAGE_ONLY=1: the result is left at <out>/norway.mbtiles.new and the live file and
+# fonts are not touched (the fonts are pinned by hash, so a refresh only checks them); the refresh
+# checks the new file, swaps it in and restarts the service. Both take the lock <out>/.refresh.lock
+# (the refresh passes TILES_LOCK_HELD=1), so two builds never share <out>.
 #
 # Disk: the budget is 10 GB in all (ashguard's hosting go, 2026-11-08), the tiles being replaced
 # included. The build scratch lives in <out>/.build-*; the whole of <out> is watched while planetiler
@@ -38,6 +39,11 @@ BUILD_NAME="gable-maps-tiles-build"
 
 here="$(cd "$(dirname "$0")" && pwd)"
 out="$(mkdir -p "${1:-$here/tiles}" && cd "${1:-$here/tiles}" && pwd)"
+stage_only="${TILES_STAGE_ONLY:-0}"
+if [[ "${TILES_LOCK_HELD:-0}" != 1 ]]; then
+  exec 9>"$out/.refresh.lock"
+  flock -n 9 || { echo "build-tiles: another build or refresh holds $out/.refresh.lock" >&2; exit 4; }
+fi
 scratch="$(mktemp -d "$out/.build-XXXXXX")"
 watch_pid=""
 
@@ -52,29 +58,53 @@ trap cleanup EXIT
 echo "disk before: $(df -h / | awk 'NR==2 {print $4 " free of " $2}')"
 mkdir -p "$scratch/sources" "$scratch/tmp" "$scratch/fonts"
 
-# Fonts first: cheap, and a hash mismatch should stop the run before the long part.
-for f in "${!NOTO_SHA256[@]}"; do
-  curl -fsSL --retry 3 -o "$scratch/fonts/$f" "$NOTO_BASE/$f"
-  echo "${NOTO_SHA256[$f]}  $scratch/fonts/$f" | sha256sum -c --quiet -
-done
-curl -fsSL --retry 3 -o "$scratch/fonts/OFL.txt" "$OFL_URL"
-echo "$OFL_SHA256  $scratch/fonts/OFL.txt" | sha256sum -c --quiet -
+# Fonts first: cheap, and a hash mismatch should stop the run before the long part. A staged
+# refresh does not replace them (pinned, so a new download would be the same bytes): it checks the
+# live ones and stops if they are not the pinned files.
+if [[ "$stage_only" == 1 ]]; then
+  for f in "${!NOTO_SHA256[@]}"; do
+    echo "${NOTO_SHA256[$f]}  $out/fonts/$f" | sha256sum -c --quiet - \
+      || { echo "build-tiles: $out/fonts/$f is not the pinned font; run a full build-tiles.sh first" >&2; exit 1; }
+  done
+else
+  for f in "${!NOTO_SHA256[@]}"; do
+    curl -fsSL --retry 3 -o "$scratch/fonts/$f" "$NOTO_BASE/$f"
+    echo "${NOTO_SHA256[$f]}  $scratch/fonts/$f" | sha256sum -c --quiet -
+  done
+  curl -fsSL --retry 3 -o "$scratch/fonts/OFL.txt" "$OFL_URL"
+  echo "$OFL_SHA256  $scratch/fonts/OFL.txt" | sha256sum -c --quiet -
+fi
 
 # The ocean: planetiler's own download of water polygons fails when osmdata.openstreetmap.de is
 # unreachable (it was from saman on 2026-11-08: "No route to host"). Fetched here first so a
 # fallback can be named: WATER_POLYGONS_URL overrides the official file (an archived copy is
 # acceptable; coastlines change slowly), or WATER_POLYGONS_FILE names a copy already on disk, which
 # is moved in (not copied: it would count twice). Planetiler skips a download whose file is there.
+# The last good zip is kept in <out>/cache/ (0.9 GB, inside the budget) and used when the download
+# fails, so an unattended refresh does not depend on that host (2026-11-08: unreachable all day, and
+# the only copy was the Wayback Machine's at ~200 KB/s). It goes into the scratch as a hard link, so
+# planetiler's free-after-read drops the link, not the data, and du counts it once.
 water="$scratch/sources/water-polygons-split-3857.zip"
+water_cache="$out/cache/water-polygons-split-3857.zip"
+zip_ok() { python3 -I -c 'import sys, zipfile; bad = zipfile.ZipFile(sys.argv[1]).testzip(); sys.exit(f"corrupt member {bad}" if bad else 0)' "$1"; }
 if [[ -n "${WATER_POLYGONS_FILE:-}" ]]; then
   echo "water polygons from $WATER_POLYGONS_FILE (moved in)"
   mv "$WATER_POLYGONS_FILE" "$water"
 else
   WATER_POLYGONS_URL="${WATER_POLYGONS_URL:-https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip}"
   echo "water polygons from $WATER_POLYGONS_URL"
-  curl -fsSL --retry 3 --connect-timeout 20 -o "$water" "$WATER_POLYGONS_URL"
+  if ! curl -fsSL --retry 3 --connect-timeout 20 -o "$water" "$WATER_POLYGONS_URL" || ! zip_ok "$water"; then
+    rm -f "$water"
+    [[ -f "$water_cache" ]] || { echo "build-tiles: water polygons download failed and there is no $water_cache" >&2; exit 1; }
+    echo "water polygons download failed: using the kept copy $water_cache ($(date -u -r "$water_cache" +%F))"
+    ln "$water_cache" "$water"
+  fi
 fi
-python3 -I -c 'import sys, zipfile; bad = zipfile.ZipFile(sys.argv[1]).testzip(); sys.exit(f"corrupt member {bad}" if bad else 0)' "$water"
+zip_ok "$water"
+if [[ ! "$water" -ef "$water_cache" ]]; then
+  mkdir -p "$out/cache"
+  ln -f "$water" "$out/cache/.water.tmp" && mv -f "$out/cache/.water.tmp" "$water_cache"
+fi
 
 # Watchdog: <out> (old output + scratch) must never grow past the budget. The peak is kept for the log.
 peak_file="$scratch/.peak-kb"
@@ -106,7 +136,14 @@ kill "$watch_pid" 2>/dev/null || true
 watch_pid=""
 echo "peak of $out during the build: $(( $(cat "$peak_file") * 1024 / 1000000 )) MB (sampled every 5 s; budget $(( BUDGET_KB * 1024 / 1000000 )) MB)"
 
-# Swap in: same filesystem, so each rename is atomic.
+# Swap in: same filesystem, so each rename is atomic. A staged refresh stops at norway.mbtiles.new.
+chmod a+r "$scratch/norway.mbtiles"
+if [[ "$stage_only" == 1 ]]; then
+  mv -f "$scratch/norway.mbtiles" "$out/norway.mbtiles.new"
+  rm -rf "$scratch"
+  echo "staged: $(du -sh "$out/norway.mbtiles.new" | cut -f1) at $out/norway.mbtiles.new; $(du -sh "$out" | cut -f1) in $out"
+  exit 0
+fi
 rm -rf "$out/fonts.new" && mv "$scratch/fonts" "$out/fonts.new"
 rm -rf "$out/fonts" && mv "$out/fonts.new" "$out/fonts"
 mv -f "$scratch/norway.mbtiles" "$out/norway.mbtiles"

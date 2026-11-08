@@ -1,11 +1,22 @@
 /**
  * The tiles/data attribution links, shared by the inline mobile footer and the
- * desktop attribution modal so the text lives in one place.
+ * desktop attribution modal so the text lives in one place. Tiles are self-hosted
+ * (OpenMapTiles schema from OpenStreetMap data); addresses come from Kartverket
+ * (CC BY 4.0, server/geocode.ts).
  */
 export default function MapAttributionLinks() {
   return (
     <>
-      Tiles &copy;{" "}
+      Map data &copy;{" "}
+      <a
+        className="source-link"
+        href="https://www.openstreetmap.org/copyright"
+        target="_blank"
+        rel="noreferrer"
+      >
+        OpenStreetMap contributors
+      </a>
+      {", tiles "}&copy;{" "}
       <a
         className="source-link"
         href="https://openmaptiles.org/"
@@ -14,25 +25,16 @@ export default function MapAttributionLinks() {
       >
         OpenMapTiles
       </a>
-      {" | "}Powered by{" "}
+      {", addresses "}&copy;{" "}
       <a
         className="source-link"
-        href="https://openfreemap.org/"
+        href="https://www.kartverket.no/"
         target="_blank"
         rel="noreferrer"
       >
-        OpenFreeMap
+        Kartverket
       </a>
-      {", "}
-      <a
-        className="source-link"
-        href="https://nominatim.openstreetmap.org/"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Nominatim
-      </a>
-      {" & "}
+      {" (CC BY 4.0) | Rendered with "}
       <a
         className="source-link"
         href="https://maplibre.org/"

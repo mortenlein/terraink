@@ -8,11 +8,20 @@ import {
   type LabelStyle,
 } from "@/features/map/infrastructure/labelLayers";
 
-const OPENFREEMAP_SOURCE = "https://tiles.openfreemap.org/planet";
-const SOURCE_ID = "openfreemap";
+/**
+ * The editor's tile source when none is passed: the self-hosted Norway tiles through this
+ * service's own /tiles proxy (server/index.ts), so the browser never fetches a public tile host
+ * (Morten 2026-11-07, gable DECISIONS.md). The headless render always passes its sourceUrl.
+ */
+const DEFAULT_SOURCE_PATH = "/tiles/norway";
+const SOURCE_ID = "openmaptiles";
+
+function defaultSourceUrl(): string {
+  return typeof location !== "undefined" ? `${location.origin}${DEFAULT_SOURCE_PATH}` : DEFAULT_SOURCE_PATH;
+}
 
 /**
- * OpenFreeMap is OpenMapTiles-based and can generalize data at low zooms.
+ * OpenMapTiles-schema tiles generalize data at low zooms.
  * Setting maxzoom explicitly keeps high zoom behavior deterministic (standard overzoom above this level).
  */
 const SOURCE_MAX_ZOOM = 14;
@@ -249,7 +258,7 @@ export function generateMapStyle(
     includeRoadMinorLow?: boolean;
     includeRoadOutline?: boolean;
     distanceMeters?: number;
-    /** TileJSON URL of an OpenMapTiles-schema vector source; OpenFreeMap by default. */
+    /** TileJSON URL of an OpenMapTiles-schema vector source; the self-hosted one by default. */
     sourceUrl?: string;
     /** Multiplies every line width (headless renders tune legibility per preset). */
     lineWidthScale?: number;
@@ -341,7 +350,7 @@ export function generateMapStyle(
     sources: {
       [SOURCE_ID]: {
         type: "vector",
-        url: options?.sourceUrl || OPENFREEMAP_SOURCE,
+        url: options?.sourceUrl || defaultSourceUrl(),
         maxzoom: SOURCE_MAX_ZOOM,
       },
     },

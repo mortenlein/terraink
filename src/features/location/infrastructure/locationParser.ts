@@ -1,6 +1,7 @@
 import type { Location, SearchResult } from "../domain/types";
 
-interface NominatimEntry {
+/** The entry shape the parser reads (geocodeAdapter.ts toEntries builds it from /geocode). */
+interface GeocodeEntry {
   lat?: number | string;
   lon?: number | string;
   display_name?: string;
@@ -38,7 +39,7 @@ function pickFirstAddressValue(
 }
 
 export function normalizeLocationResult(
-  entry: NominatimEntry | null | undefined,
+  entry: GeocodeEntry | null | undefined,
   fallbackLabel = "",
 ): SearchResult | null {
   if (!entry || typeof entry !== "object") {
@@ -90,7 +91,7 @@ export function normalizeLocationResult(
 }
 
 export function parseLocationResponseItems(payload: unknown): SearchResult[] {
-  const entries = Array.isArray(payload) ? (payload as NominatimEntry[]) : [];
+  const entries = Array.isArray(payload) ? (payload as GeocodeEntry[]) : [];
   const suggestions: SearchResult[] = [];
   const seenLabels = new Set<string>();
 

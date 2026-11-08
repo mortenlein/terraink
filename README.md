@@ -34,8 +34,8 @@ the app's footer links to it.
 - **No watermark.** Exports carry no credit line unless `VITE_APP_CREDIT_URL` is set (it is not).
 - **Map data attribution stays on every image**, bottom-right, shrunk to fit and never
   covered by the pin or label. The headless renderer reads the text from the tile source's own
-  TileJSON (`OpenFreeMap © OpenMapTiles Data from OpenStreetMap` for OpenFreeMap), so the
-  attribution is the one the provider asks for; `MAP_ATTRIBUTION` overrides it, and a source
+  TileJSON (`© OpenMapTiles © OpenStreetMap contributors` for our own Norway tiles), so the
+  attribution is the one the data asks for; `MAP_ATTRIBUTION` overrides it, and a source
   without an attribution is refused.
 - **Headless render API** (`server/`, `render.html`, `src/render/main.ts`): a Bun service
   that drives the app's own export path in headless Chromium.
@@ -48,7 +48,8 @@ the app's footer links to it.
 - **Road and place names** (`labels` in a preset): only the road classes and place kinds the
   preset lists, named at most once or twice per image, kept clear of the pin, its label, the
   attribution and the image edges.
-- **Geocoding endpoint** that honours the Nominatim usage policy.
+- **Self-hosted tiles and glyphs** (`tiles` service, `infra/build-tiles.sh`) and **geocoding
+  from Kartverket's address API**, so no render or lookup touches a public map service.
 
 ## Render API
 
@@ -137,7 +138,7 @@ at `scale: 1`; zooms are request zooms.
 | `places.kinds` | OpenMapTiles `place` classes (`city`, `town`, `village`, `suburb`, …) |
 | `places.maxCount` | at most this many place names, the most important (lowest `rank`) first; default 2 |
 | `places.size`, `.letterSpacing`, `.transform` | place-name overrides of the shared values |
-| `font` | a font stack the glyph server has (OpenFreeMap: `Noto Sans Regular`, `Italic`, `Bold`) |
+| `font` | a font stack the glyph server has (ours: `Noto Sans Regular`, `Noto Sans Italic`, `Noto Sans Bold`) |
 | `size`, `letterSpacing` (em), `transform` (`none` / `uppercase`) | the road-name type |
 | `color` | the ink of every name (default the preset's text colour) |
 | `halo` | `{ color, width }`: the outline, and the colour of the plaque under a road name (default the land colour) |
@@ -156,27 +157,37 @@ How it is drawn (`src/features/map/infrastructure/labelLayers.ts`, `src/render/m
   The far ground, where a name would be drawn at less than 70 % of its height
   (MapLibre's perspective scaling times the foreshortening), is kept clear, so 3D renders
   name only the near and middle ground.
-- **Glyphs** come from `GLYPHS_URL`, by default OpenFreeMap's
-  `https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf` (the `glyphs` of its own
-  styles, read 2026-10-06). A failed glyph request fails the render, like a tile. Other fonts
-  (Gable's own, say) would need PBF glyph ranges generated from the font files and served by
-  this service; that is not done.
+- **Glyphs** come from `GLYPHS_URL`, by default the tile service's
+  `http://gable-maps-tiles:3000/font/{fontstack}/{range}` (martin cuts the PBF ranges from the
+  Noto Sans TTFs `infra/build-tiles.sh` fetches, pinned by commit and sha256). A failed glyph
+  request fails the render, like a tile. Another font is another TTF in `infra/tiles/fonts/`.
+- **Only our own hosts.** The render page may reach this server and the tile/glyph hosts and
+  nothing else: every other request is aborted and logged (`render: refused requests to …`).
 
-### `GET /geocode?q=<address>&limit=5`
+### `GET /geocode?q=<address>&limit=5`, `GET /reverse?lat=<lat>&lng=<lng>`
 
 ```json
-{ "query": "storgata 1 mo i rana", "cached": false,
-  "results": [{ "lat": 66.31, "lng": 14.14, "displayName": "...", "type": "house" }] }
+{ "query": "ole tobias olsens gate 6 8622 mo i rana", "cached": false,
+  "results": [{ "lat": 66.30813, "lng": 14.13573, "displayName": "Ole Tobias Olsens gate 6, 8622 MO I RANA", "type": "Vegadresse" }],
+  "attribution": "© Kartverket (CC BY 4.0)" }
 ```
 
-Proxies [Nominatim](https://nominatim.openstreetmap.org/) under its usage policy,
-<https://operations.osmfoundation.org/policies/nominatim/>:
+Answers from Kartverket's open address API (`GEOCODER_URL`, default
+`https://api.kartverket.no/adresser/v1`, the distribution URL in Kartverket's catalogue record
+<https://kartkatalog.geonorge.no/api/getdata/44eeffdc-6069-4000-a49b-2d6bfc59ac61>, read
+2026-11-08; `https://ws.geonorge.no/adresser/v1` serves the same API). `/geocode` uses `/sok`,
+`/reverse` uses `/punktsok` (nearest address within 200 m).
 
-- every request identifies the application in the `User-Agent` with a contact e-mail from
-  `NOMINATIM_CONTACT`; **without that variable the endpoint answers 503 and never calls Nominatim**;
-- at most one request per second across all callers (calls are queued and spaced);
-- results are cached on disk for 30 days, keyed by the normalised query (case, commas and
-  whitespace folded), so the same address is asked once.
+- **Terms (read 2026-11-08):** open, no key; licence CC BY 4.0, so every answer carries
+  `attribution`; not meant for extracting whole datasets; breaking changes are announced three
+  months ahead on <https://geonorge.no/aktuelt/varsler/Tjenestevarsler/>. No rate limit is
+  published; calls are still queued and spaced 250 ms apart (judgement).
+- **Norwegian addresses only.** `sok` requires every word to match, so a trailing country word
+  (`Norge`, `Norway`, `Noreg`, as Gable appends) is dropped first. A bare place name or a
+  foreign address finds nothing.
+- Results are cached on disk for 30 days, keyed by provider and the normalised query (case,
+  commas and whitespace folded), so the same address is asked once and an answer cached from
+  the earlier Nominatim geocoder is never served.
 
 ### `GET /health`, `GET /presets`
 
@@ -185,24 +196,38 @@ Proxies [Nominatim](https://nominatim.openstreetmap.org/) under its usage policy
 `GET /` serves the interactive map editor (the upstream app, de-branded), useful for trying
 styles by hand.
 
-## Provisional choices
+## Tiles
 
-- **Tile source.** `TILE_URL` defaults to OpenFreeMap's public planet
-  (`https://tiles.openfreemap.org/planet`, OpenMapTiles schema). Whether customer sites may rely
-  on it, or we self-host OpenMapTiles, is an open decision on the Gable side.
-- **Geocoding.** The public Nominatim instance is for low volume. Kartverket's address data is
-  the alternative for Norwegian addresses; also open on the Gable side.
+Decided by Morten 2026-11-07 (Gable `DECISIONS.md`): our own tiles and Kartverket geocoding, not
+OpenFreeMap's public planet and public Nominatim.
+
+- **Service:** `tiles` in `infra/compose.yml`, container (and label `com.gable.project`)
+  `gable-maps-tiles`, image `ghcr.io/maplibre/martin:1.16.1`, published on `127.0.0.1:8216`
+  for checks from the host. The renderer reaches it as `http://gable-maps-tiles:3000` on the
+  compose network. The editor in a browser goes through this server's `/tiles/*` proxy.
+- **Data:** `infra/build-tiles.sh` renders Geofabrik's `norway-latest.osm.pbf` with planetiler
+  0.10.2's OpenMapTiles profile into `infra/tiles/norway.mbtiles` (gitignored and
+  dockerignored), and fetches Noto Sans Regular, Bold and Italic (OFL 1.1) into
+  `infra/tiles/fonts/`. Norway only: a render outside Norway is ocean and Natural Earth.
+- **Refresh:** run `infra/build-tiles.sh` again, then
+  `docker compose -f infra/compose.yml restart tiles`. The new file replaces the old only after
+  a whole build succeeded. No cadence is set (judgement: monthly is plenty for streets).
+- **Water polygons:** planetiler downloads them from osmdata.openstreetmap.de. That host was
+  unreachable from saman on 2026-11-08, and `WATER_POLYGONS_URL` names another copy (the first
+  build used the Wayback Machine's 2026-01-07 copy of the same file).
+- **Disk:** at most 10 GB in all (the hosting go). The build's scratch is watched and stopped
+  above 9 GiB, then removed.
 
 ## Configuration
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `PORT` | `3000` | listen port |
-| `TILE_URL` | OpenFreeMap planet | TileJSON URL of an OpenMapTiles-schema vector source |
+| `TILE_URL` | `http://gable-maps-tiles:3000/norway` | TileJSON URL of an OpenMapTiles-schema vector source |
 | `MAP_ATTRIBUTION` | (from TileJSON) | attribution text drawn on images |
-| `GLYPHS_URL` | OpenFreeMap's fonts | glyph PBF template (`{fontstack}`, `{range}`) for map names |
-| `NOMINATIM_CONTACT` | (none) | contact e-mail for Nominatim; geocoding is off without it |
-| `NOMINATIM_URL` | `https://nominatim.openstreetmap.org` | another Nominatim instance |
+| `GLYPHS_URL` | the tile service's `/font/{fontstack}/{range}` | glyph PBF template for map names |
+| `GEOCODER_URL` | `https://api.kartverket.no/adresser/v1` | Kartverket's address API |
+| `TILES_DIR` | `infra/tiles` | compose: where `build-tiles.sh` wrote the tile data |
 | `GEOCODE_CACHE_DIR` | `/data/geocode` in the image | cache directory (a named volume in compose) |
 
 ## Develop
@@ -218,7 +243,8 @@ bun run dev                   # the editor alone, with Vite
 ## Docker
 
 ```bash
-cp infra/.env.example infra/.env && chmod 600 infra/.env   # set NOMINATIM_CONTACT
+cp infra/.env.example infra/.env && chmod 600 infra/.env   # every value may stay empty
+infra/build-tiles.sh                                       # the tile data, once
 docker compose -f infra/compose.yml up -d --build
 curl -s http://127.0.0.1:8215/health
 curl -s -X POST http://127.0.0.1:8215/render -H 'Content-Type: application/json' \
@@ -235,8 +261,9 @@ shell only) and runs as the non-root `bun` user. Compose project `gable-maps`, c
 
 - **Map data**: © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), [ODbL](https://opendatacommons.org/licenses/odbl/)
 - **Tile schema**: © [OpenMapTiles](https://openmaptiles.org/)
-- **Tile hosting**: [OpenFreeMap](https://openfreemap.org/)
-- **Geocoding**: [Nominatim](https://nominatim.openstreetmap.org/) / OpenStreetMap data
+- **Tiles**: self-hosted, built with [planetiler](https://github.com/onthegomap/planetiler) and served by [martin](https://martin.maplibre.org/)
+- **Glyphs**: [Noto Sans](https://notofonts.github.io/), SIL Open Font License 1.1
+- **Geocoding**: © [Kartverket](https://www.kartverket.no/), address data under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 - **Map rendering**: [MapLibre GL JS](https://maplibre.org/), BSD-3-Clause
 - **Fonts**: SIL Open Font License, see [public/licenses/fonts.txt](./public/licenses/fonts.txt)
 

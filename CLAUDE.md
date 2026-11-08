@@ -8,7 +8,12 @@ that override the upstream guide below:
 - Map data attribution must stay on every rendered image.
 - The headless path is `server/` (Bun) -> `render.html` -> `src/render/main.ts`, which
   reuses `generateMapStyle`, `renderStyleToCanvas`, `compositeExport`, `createPngBlob`.
-- Deployment: `infra/compose.yml` on ash, port 127.0.0.1:8215 (Gable's block).
+- Deployment: `infra/compose.yml` on saman: the renderer on 127.0.0.1:8215, the tile service
+  `gable-maps-tiles` on 127.0.0.1:8216 (Gable's block; foundation hosts/saman/ports.tsv).
+- No public map services (Morten 2026-11-07): tiles and glyphs are self-hosted
+  (`infra/build-tiles.sh`, README "Tiles"), geocoding is Kartverket's address API. The render
+  page aborts any request to another host. Do not touch `presets/` without the same change in
+  Gable's `sites/generator/map-presets/` (Gable's check-map-presets-sync).
 - Commit style here is plain English imperative subjects; no branch flow (commit to main).
 
 ---

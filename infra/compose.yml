@@ -1,5 +1,7 @@
-# The map renderer on ash (Gable's port block, 8215; foundation hosts/ash/ports.tsv).
-# Loopback only: nothing outside the host reaches it, and it has no auth.
+# The map renderer and its tile service on saman (Gable's port block 8210-8219; foundation
+# hosts/saman/ports.tsv: maps 8215, tiles 8216). Loopback only: nothing outside the host reaches
+# either, and neither has auth.
+#   infra/build-tiles.sh                          # once, and to refresh: the tile data (infra/tiles/)
 #   docker compose -f infra/compose.yml up -d --build
 # Settings in infra/.env (gitignored; template infra/.env.example).
 name: gable-maps
@@ -16,20 +18,44 @@ services:
     ports:
       - "127.0.0.1:8215:3000"
     environment:
-      # Nominatim requires identification; geocoding answers 503 without it.
-      NOMINATIM_CONTACT: ${NOMINATIM_CONTACT:-}
-      # TileJSON of an OpenMapTiles-schema vector source. PROVISIONAL: the
-      # tile source for customer sites is not decided (Gable OPEN_QUESTIONS).
-      TILE_URL: ${TILE_URL:-https://tiles.openfreemap.org/planet}
-      # Glyph PBFs for map names; empty = OpenFreeMap's (server/config.ts).
+      # Empty = the defaults in server/config.ts: the tiles service below (TileJSON and glyphs, by
+      # its name on this network) and Kartverket's address API. Morten 2026-11-07: no public
+      # OpenFreeMap tiles, no public Nominatim.
+      TILE_URL: ${TILE_URL:-}
       GLYPHS_URL: ${GLYPHS_URL:-}
-      # Empty = read the attribution from the TileJSON.
+      GEOCODER_URL: ${GEOCODER_URL:-}
+      # Empty = read the attribution from the TileJSON (OpenMapTiles + OpenStreetMap).
       MAP_ATTRIBUTION: ${MAP_ATTRIBUTION:-}
+    depends_on:
+      tiles:
+        condition: service_healthy
     volumes:
       - geocode-cache:/data/geocode
     mem_limit: 1536m
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # OpenMapTiles-schema vector tiles of Norway and the Noto Sans glyphs, from infra/build-tiles.sh.
+  # martin builds the TileJSON's tile URLs from the request's Host, so the renderer's Chromium is
+  # handed http://gable-maps-tiles:3000/... and resolves it on this network.
+  tiles:
+    image: ghcr.io/maplibre/martin:1.16.1
+    container_name: gable-maps-tiles
+    labels:
+      com.gable.project: gable-maps-tiles
+    restart: unless-stopped
+    command: ["--font", "/data/fonts", "/data/norway.mbtiles"]
+    ports:
+      - "127.0.0.1:8216:3000"
+    volumes:
+      - ${TILES_DIR:-./tiles}:/data:ro
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

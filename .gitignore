@@ -41,3 +41,5 @@ updates.json
 
 # ignore agent setting files
 .claude/
+# Self-hosted tile data (infra/build-tiles.sh), never committed
+/infra/tiles/

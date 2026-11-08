@@ -1,6 +1,7 @@
 const CACHE_NAME = "map-renderer-static-v3";
-const TILE_CACHE_NAME = "map-renderer-tiles-v1";
-const TILE_ORIGINS = ["https://tiles.openfreemap.org"];
+const TILE_CACHE_NAME = "map-renderer-tiles-v2";
+/** The self-hosted tiles and glyphs, same origin through the server's /tiles proxy. */
+const TILE_PATH_PREFIX = "/tiles/";
 const APP_SHELL_ASSETS = [
   "/",
   "/index.html",
@@ -48,7 +49,7 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  if (TILE_ORIGINS.some((origin) => url.origin === origin)) {
+  if (url.origin === self.location.origin && url.pathname.startsWith(TILE_PATH_PREFIX)) {
     event.respondWith(
       caches.open(TILE_CACHE_NAME).then((cache) =>
         cache.match(request).then((cached) => {

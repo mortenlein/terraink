@@ -5,3 +5,4 @@ dist
 .cache
 infra/.env
 *.log
+infra/tiles

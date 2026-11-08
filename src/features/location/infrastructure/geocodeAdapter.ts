@@ -13,11 +13,41 @@ import {
   getReverseGeocodeCacheKey,
 } from "./cacheKeys";
 
+/**
+ * The editor's geocoding goes through this service's own /geocode and /reverse (server/geocode.ts:
+ * Kartverket's address API, cached and throttled there), never to a public geocoder from the
+ * browser (Morten 2026-11-07, gable DECISIONS.md). Kartverket has Norwegian addresses only, so a
+ * place outside Norway, or a bare city name, finds nothing.
+ */
+interface ServerResult {
+  lat: number;
+  lng: number;
+  displayName: string;
+}
+
+/** "Storgata 1, 8622 MO I RANA" -> the place after the postcode, as the city. */
+function cityOf(displayName: string): string {
+  const m = /,\s*\d{4}\s+(.+)$/.exec(displayName);
+  return m ? m[1] : "";
+}
+
+/** The server's answer -> the entry shape locationParser reads. */
+export function toEntries(payload: unknown): Record<string, unknown>[] {
+  const results = (payload as { results?: ServerResult[] } | null)?.results;
+  if (!Array.isArray(results)) return [];
+  return results.map((r) => ({
+    lat: r.lat,
+    lon: r.lng,
+    display_name: r.displayName,
+    address: { city: cityOf(r.displayName), country: "Norway", country_code: "no" },
+  }));
+}
+
 // Deduplicate concurrent requests for the same query/coordinates
 const inFlightSearchRequests = new Map<string, Promise<SearchResult[]>>();
 const inFlightReverseRequests = new Map<string, Promise<SearchResult>>();
 
-export function createNominatimAdapter(
+export function createGeocodeAdapter(
   http: IHttp,
   cache: ICache,
 ): IGeocodePort {
@@ -42,15 +72,13 @@ export function createNominatimAdapter(
       return inFlightSearchRequests.get(cacheKey)!;
     }
 
-    const url =
-      "https://nominatim.openstreetmap.org/search?" +
-      `format=jsonv2&addressdetails=1&limit=${normalizedLimit}&q=${encodeURIComponent(lookup)}`;
+    const url = `/geocode?limit=${normalizedLimit}&q=${encodeURIComponent(lookup)}`;
 
     const promise = http
       .get(url, { headers: { Accept: "application/json" }, signal }, 16_000)
       .then(async (response) => {
         const data = await response.json();
-        const results = parseLocationResponseItems(data);
+        const results = parseLocationResponseItems(toEntries(data));
         cache.write(cacheKey, results);
         return results;
       })
@@ -121,15 +149,13 @@ export function createNominatimAdapter(
       return inFlightReverseRequests.get(cacheKey)!;
     }
 
-    const url =
-      "https://nominatim.openstreetmap.org/reverse?" +
-      `format=jsonv2&addressdetails=1&zoom=10&lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}`;
+    const url = `/reverse?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lon))}`;
 
     const promise = http
       .get(url, { headers: { Accept: "application/json" } }, 16_000)
       .then(async (response) => {
         const data = await response.json();
-        const normalized = normalizeLocationResult(data);
+        const normalized = normalizeLocationResult(toEntries(data)[0] as any);
         if (!normalized) {
           throw new Error("No nearby city found for the selected coordinates.");
         }

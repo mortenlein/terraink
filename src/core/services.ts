@@ -9,16 +9,16 @@
 import { localStorageCache } from "@/core/cache/localStorageCache";
 import { fetchAdapter } from "@/core/http/fetchAdapter";
 import { localFontsAdapter } from "@/core/fonts/localFontsAdapter";
-import { createNominatimAdapter } from "@/features/location/infrastructure/nominatimAdapter";
+import { createGeocodeAdapter } from "@/features/location/infrastructure/geocodeAdapter";
 import { createRecentLocationsStore } from "@/features/location/infrastructure/recentLocationsStore";
 
-/* ── Location / Geocoding ── */
+/* ── Location / Geocoding (this service's /geocode and /reverse: Kartverket) ── */
 
-const nominatim = createNominatimAdapter(fetchAdapter, localStorageCache);
+const geocoder = createGeocodeAdapter(fetchAdapter, localStorageCache);
 
-export const searchLocations = nominatim.searchLocations;
-export const geocodeLocation = nominatim.geocodeLocation;
-export const reverseGeocodeCoordinates = nominatim.reverseGeocode;
+export const searchLocations = geocoder.searchLocations;
+export const geocodeLocation = geocoder.geocodeLocation;
+export const reverseGeocodeCoordinates = geocoder.reverseGeocode;
 
 /* ── Recent location history ── */
 

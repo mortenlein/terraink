@@ -68,7 +68,7 @@ export const CLEARANCE_IMAGE_PREFIX = "clearance:";
 /** Images named `plaque:<rrggbb>` are solid swatches made on demand, stretched behind a name. */
 export const PLAQUE_IMAGE_PREFIX = "plaque:";
 
-/** OpenFreeMap's glyph server carries the Noto Sans stacks its own styles use. */
+/** The tile service (infra/compose.yml `tiles`) serves glyphs for Noto Sans Regular, Bold and Italic. */
 const DEFAULT_FONT = ["Noto Sans Regular"];
 const DEFAULT_SIZE = 11;
 const DEFAULT_LETTER_SPACING = 0.08;

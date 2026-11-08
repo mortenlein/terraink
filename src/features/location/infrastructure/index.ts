@@ -1,4 +1,4 @@
-export { createNominatimAdapter } from "./nominatimAdapter";
+export { createGeocodeAdapter } from "./geocodeAdapter";
 export {
   normalizeLocationResult,
   parseLocationResponseItems,

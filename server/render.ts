@@ -115,6 +115,17 @@ async function renderOnce(input: RenderInput): Promise<{ png: Buffer; ms: number
   const context = await b.newContext({ viewport: { width: 800, height: 600 } });
   // Glyphs count like tiles: a missing glyph range would drop names silently.
   const sourceHosts = new Set([new URL(config.tileUrl).host, new URL(config.glyphsUrl.replace(/[{}]/g, "")).host]);
+  // The page may talk to our own server and the tile source, nothing else: every other request
+  // is refused and logged, so a style or bundle that reaches for a public host is seen at once
+  // (the self-hosting decision, gable DECISIONS.md 2026-11-07).
+  const allowedHosts = new Set([...sourceHosts, `127.0.0.1:${config.port}`]);
+  const blocked: string[] = [];
+  await context.route("**/*", (route) => {
+    const u = new URL(route.request().url());
+    if (u.protocol === "data:" || u.protocol === "blob:" || allowedHosts.has(u.host)) return route.continue();
+    blocked.push(u.host);
+    return route.abort("blockedbyclient");
+  });
   const failures: string[] = [];
   const started = Date.now();
   try {
@@ -157,6 +168,9 @@ async function renderOnce(input: RenderInput): Promise<{ png: Buffer; ms: number
       timeout,
     ])) as { png: string; ms: number };
 
+    if (blocked.length) {
+      console.warn(`render: refused requests to ${[...new Set(blocked)].join(", ")}`);
+    }
     if (failures.length) {
       throw new RenderError(`tile fetch failed (${failures.length}): ${failures[0]}`, 502);
     }

@@ -18,7 +18,7 @@ export const DEFAULT_DISTANCE_METERS = 4_000;
 /** Earth circumference at equator in meters. */
 export const EARTH_CIRCUMFERENCE_M = 40_075_016.686;
 
-/** Vector tile size for OpenMapTiles/OpenFreeMap tile scheme. */
+/** Vector tile size for the OpenMapTiles tile scheme. */
 export const TILE_SIZE_PX = 512;
 
 /** Min zoom level allowed for the map. */

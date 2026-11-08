@@ -35,6 +35,11 @@ describe("kartverketQuery", () => {
     expect(kartverketQuery("norgesgata 3")).toBe("norgesgata 3");
     expect(kartverketQuery("norge")).toBe("norge");
   });
+  test("spells out a standalone gt. (Kartverket has 'gate', and 'gt' finds nothing)", () => {
+    expect(kartverketQuery("karl johans gt. 1 oslo")).toBe("karl johans gate 1 oslo");
+    expect(kartverketQuery("karl johans gt 1 oslo")).toBe("karl johans gate 1 oslo");
+    expect(kartverketQuery("gtx 1")).toBe("gtx 1");
+  });
 });
 
 describe("geocode", () => {
@@ -84,6 +89,15 @@ describe("geocode", () => {
     const good = recorder(fixture("kartverket-sok-none.json"));
     await geocode("storgata 1 oslo", 1, { fetchImpl: good.fetchImpl, baseUrl: BASE, cacheDir, minIntervalMs: 0 });
     expect(good.calls).toHaveLength(1);
+  });
+
+  test("a query without a number finds nothing and never calls out", async () => {
+    // Kartverket answers "mo i rana" with 9 428 addresses, the first a random cadastral one
+    // (127/3, 8616 MO I RANA, 2026-11-08): a pin there would be wrong without anyone noticing.
+    const { calls, fetchImpl } = recorder(fixture("kartverket-sok-mo-i-rana.json"));
+    const r = await geocode("Mo i Rana, Norge", 1, { fetchImpl, baseUrl: BASE, cacheDir: freshCache(), minIntervalMs: 0 });
+    expect(r.results).toEqual([]);
+    expect(calls).toHaveLength(0);
   });
 
   test("an empty or overlong query is a 400 and never calls out", async () => {

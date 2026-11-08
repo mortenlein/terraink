@@ -17,6 +17,7 @@
  *
  * Kartverket's `sok` ANDs every word, so a word that is in no address field gives zero hits. Gable
  * sends "<address>, Norge" (gable app/src/components/edit/sections.tsx): the country is dropped.
+ * A query without any number is answered with no hit (see geocode()).
  * The answer keeps the shape Gable reads (gable app/src/lib/edit/geocode.ts firstHit):
  * { query, cached, results: [{ lat, lng, displayName, type }] }, plus `attribution`.
  * Coordinates are EUREF89 (EPSG:4258), within a metre of WGS84 in Norway.
@@ -60,9 +61,13 @@ export interface GeocodeDeps {
 /** Country words Gable (or a person) appends; Kartverket only has Norwegian addresses. */
 const COUNTRY_WORDS = new Set(["norge", "norway", "noreg"]);
 
-/** The normalised query as Kartverket's `sok` wants it: no trailing country word. */
+/**
+ * The normalised query as Kartverket's `sok` wants it: no trailing country word, and a standalone
+ * "gt."/"gt" spelled out as "gate" (the register has no abbreviations; "karl johans gt 1 oslo" finds
+ * nothing, 2026-11-08). Joined forms ("kirkegt.") are not guessed at.
+ */
 export function kartverketQuery(normalised: string): string {
-  const words = normalised.split(" ").filter(Boolean);
+  const words = normalised.split(" ").filter(Boolean).map((w) => (w === "gt" || w === "gt." ? "gate" : w));
   while (words.length > 1 && COUNTRY_WORDS.has(words[words.length - 1].replace(/\.$/, ""))) words.pop();
   return words.join(" ");
 }
@@ -162,6 +167,9 @@ export async function geocode(q: string, limit: number, deps: GeocodeDeps = {}):
   const normalised = normaliseQuery(q);
   if (!normalised || normalised.length > 300) throw new GeocodeError("q must be 1 to 300 characters", 400);
   const sok = kartverketQuery(normalised);
+  // An address has a number (house or postcode). Without one, Kartverket answers with every
+  // address in the place, the first a random cadastral one: a wrong pin nobody would notice.
+  if (!/\d/.test(sok)) return { query: sok, cached: false, results: [], attribution: GEOCODE_ATTRIBUTION };
   const answer = await cachedAsk(`sok|${sok}|${limit}`, deps, async (fetchImpl, base) => {
     const url = new URL(`${base}/sok`);
     url.searchParams.set("sok", sok);

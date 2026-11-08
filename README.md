@@ -183,8 +183,10 @@ Answers from Kartverket's open address API (`GEOCODER_URL`, default
   months ahead on <https://geonorge.no/aktuelt/varsler/Tjenestevarsler/>. No rate limit is
   published; calls are still queued and spaced 250 ms apart (judgement).
 - **Norwegian addresses only.** `sok` requires every word to match, so a trailing country word
-  (`Norge`, `Norway`, `Noreg`, as Gable appends) is dropped first. A bare place name or a
-  foreign address finds nothing.
+  (`Norge`, `Norway`, `Noreg`, as Gable appends) is dropped first, and a standalone `gt.` is
+  spelled `gate`. A query without any number (a bare place name) is answered with no hit
+  without asking: Kartverket would return a random address in that place. A foreign address,
+  a misspelt street or a joined abbreviation (`Kirkegt.`) finds nothing.
 - Results are cached on disk for 30 days, keyed by provider and the normalised query (case,
   commas and whitespace folded), so the same address is asked once and an answer cached from
   the earlier Nominatim geocoder is never served.

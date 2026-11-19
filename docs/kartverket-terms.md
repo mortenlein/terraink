@@ -32,7 +32,7 @@ our own reading.
   a query with no number gets no lookup at all, and a hit whose street and number are not in the
   query is dropped.
 - Every answer carries `© Kartverket (CC BY 4.0)` (`server/geocode.ts:46`, `GEOCODE_ATTRIBUTION`).
-  Whether Gable shows it to the owner is an open item (ROADMAP.md).
+  Gable shows it to the owner under the address field when the pin came from the geocoder (2026-11-19, dev 54d3a51); it is not stored, so it is gone after a reload, and the published map carries none (ROADMAP.md).
 
 **Judgement:** at that volume (one request per owner edit, under 4 a second at the very worst,
 far fewer after the cache) we are well inside the declared capacity of 10 simultaneous requests

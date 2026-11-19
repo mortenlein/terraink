@@ -11,10 +11,10 @@ directories, social) are terraink.app's and not ours.
    its tests exist (2026-11-08).
 2. Done 2026-11-19: the three type errors are fixed, `bun run typecheck` is clean.
 3. Done 2026-11-19: `refresh-tiles.sh` refuses under 12 GB MemAvailable (exit 10), with a red test.
-4. **Show Kartverket's credit where a pin came from it** (1 h, in Gable): the geocode answer
-   carries `attribution` (`© Kartverket (CC BY 4.0)`) and Gable's editor drops it; one text in the
-   message catalog (all languages), one line under the address field, a staging screenshot
-   (Gable rule 8). CC BY 4.0 asks for it (`docs/kartverket-terms.md`).
+4. **Show Kartverket's credit where a pin came from it**: done 2026-11-19 in Gable (dev 54d3a51; the
+   editor shows «Adressedata: © Kartverket (CC BY 4.0)» under the address field after «Hent fra
+   adressen»; staging GREEN with the screenshot). Not stored: after a reload the line is gone, and the
+   published map carries no credit (a stored field and a migration would be needed).
 5. **Joined abbreviations in addresses** (1.5 h): «Kirkegt. 3» and the like («-gt.», «-vn.», «-v.»,
    «-pl.») spelled out in `kartverketQuery` as «gt.» already is; a suffix table, fixtures and
    tests for each.

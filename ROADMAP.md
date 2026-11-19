@@ -9,9 +9,7 @@ directories, social) are terraink.app's and not ours.
 1. **Schedule the monthly tile refresh** (0.5 h): a cron line on saman for `infra/refresh-tiles.sh`
    with its log, plus the `refresh-tiles: OK|FAIL` line in the lane-daemon catalog; the script and
    its tests exist (2026-11-08).
-2. **Fix the three pre-existing type errors** (0.5 h): `pngExporter.ts:96` (Uint8Array as BlobPart),
-   `StartupLocationModal.tsx:130` (`reason` not on `GeolocationRequestResult`), `typography.ts:50`
-   (`map` not on the theme type); one line each, then `bun run typecheck` clean.
+2. Done 2026-11-19: the three type errors are fixed, `bun run typecheck` is clean.
 3. **A memory guard in the refresh** (0.5 h): refuse when MemAvailable is under the build's 10 GB
    heap plus a margin (saman's swap was full on 2026-11-08); one check and one red test beside
    the disk and load guards.

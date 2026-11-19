@@ -36,7 +36,7 @@ export function drawPosterText(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  theme: { ui?: { text?: string } },
+  theme: { ui?: { text?: string }; map?: { land?: string } },
   center: Coordinate,
   city: string,
   country: string,

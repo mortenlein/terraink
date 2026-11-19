@@ -95,7 +95,7 @@ chmod +x "$tmp/bin/"*
 run_refresh() {
   local d="$1"; shift
   set +e
-  env TILES_CONTAINER="$container" TILES_HEALTH_URL="" REFRESH_MAX_LOAD=1000 REFRESH_MIN_FREE_GB=0 \
+  env TILES_CONTAINER="$container" TILES_HEALTH_URL="" REFRESH_MAX_LOAD=1000 REFRESH_MIN_FREE_GB=0 REFRESH_MIN_MEM_GB=0 \
     REFRESH_RESTART_CMD="touch '$d/.restarted'" REFRESH_BUILD_CMD="$tmp/bin/build-good" \
     REFRESH_MIN_BYTES=1 "$@" "$script" "$d" > "$d.log" 2>&1
   rc=$?
@@ -122,6 +122,15 @@ d=$(new_dir); fp=$(fingerprint "$d")
 run_refresh "$d" REFRESH_MIN_FREE_GB=999999
 check "exits 2" test "$rc" = 2
 check "last line is the FAIL line" grep -q '^refresh-tiles: FAIL low disk' <<< "$last"
+check "no lock file, no build, no scratch" test ! -e "$d/.refresh.lock" -a ! -e "$d/.built" -a -z "$(ls -A "$d" | grep -v '^norway.mbtiles$')"
+check "live file untouched" test "$fp" = "$(fingerprint "$d")"
+
+echo "guard: low memory"
+d=$(new_dir); fp=$(fingerprint "$d")
+printf 'MemTotal:       65000000 kB\nMemAvailable:    3000000 kB\n' > "$tmp/meminfo-low"
+run_refresh "$d" REFRESH_MIN_MEM_GB=12 REFRESH_MEMINFO="$tmp/meminfo-low"
+check "exits 10" test "$rc" = 10
+check "last line is the FAIL line" grep -q '^refresh-tiles: FAIL low memory' <<< "$last"
 check "no lock file, no build, no scratch" test ! -e "$d/.refresh.lock" -a ! -e "$d/.built" -a -z "$(ls -A "$d" | grep -v '^norway.mbtiles$')"
 check "live file untouched" test "$fp" = "$(fingerprint "$d")"
 

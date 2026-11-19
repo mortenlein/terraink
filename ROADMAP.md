@@ -10,9 +10,7 @@ directories, social) are terraink.app's and not ours.
    with its log, plus the `refresh-tiles: OK|FAIL` line in the lane-daemon catalog; the script and
    its tests exist (2026-11-08).
 2. Done 2026-11-19: the three type errors are fixed, `bun run typecheck` is clean.
-3. **A memory guard in the refresh** (0.5 h): refuse when MemAvailable is under the build's 10 GB
-   heap plus a margin (saman's swap was full on 2026-11-08); one check and one red test beside
-   the disk and load guards.
+3. Done 2026-11-19: `refresh-tiles.sh` refuses under 12 GB MemAvailable (exit 10), with a red test.
 4. **Show Kartverket's credit where a pin came from it** (1 h, in Gable): the geocode answer
    carries `attribution` (`© Kartverket (CC BY 4.0)`) and Gable's editor drops it; one text in the
    message catalog (all languages), one line under the address field, a staging screenshot

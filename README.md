@@ -212,7 +212,7 @@ OpenFreeMap's public planet and public Nominatim.
   dockerignored), and fetches Noto Sans Regular, Bold and Italic (OFL 1.1) into
   `infra/tiles/fonts/`. Norway only: a render outside Norway is ocean and Natural Earth.
 - **Refresh:** `infra/refresh-tiles.sh`, safe unattended (cron). It refuses to start under
-  20 GB free on the tiles filesystem or at a 1-minute load of 8 or more, takes the lock
+  20 GB free on the tiles filesystem or at a 1-minute load of 8 or more or under 12 GB MemAvailable (the build's 10 GB heap plus a margin), takes the lock
   `infra/tiles/.refresh.lock` (shared with `build-tiles.sh`), builds into
   `norway.mbtiles.new`, checks it (`infra/check-mbtiles.py`: size against the live file, metadata,
   the OSM date not older, known tiles in Mo i Rana and Oslo), swaps it in with one rename and

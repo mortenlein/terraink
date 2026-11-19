@@ -5,7 +5,9 @@
 #
 # Order, each step only after the one before succeeded:
 #   1. Guards, before anything is written: free space on the tiles filesystem at least
-#      REFRESH_MIN_FREE_GB (20), the 1-minute load average under REFRESH_MAX_LOAD (8).
+#      REFRESH_MIN_FREE_GB (20), the 1-minute load average under REFRESH_MAX_LOAD (8), MemAvailable
+#      at least REFRESH_MIN_MEM_GB (12: the build's -Xmx10g heap plus 2 GB; saman's swap was full
+#      on 2026-11-08, and a build then thrashes or gets OOM-killed).
 #   2. The lock <tiles-dir>/.refresh.lock (flock -n), shared with build-tiles.sh: a second run exits.
 #   3. build-tiles.sh with TILES_STAGE_ONLY=1 builds <tiles-dir>/norway.mbtiles.new (the build's
 #      own watchdog keeps all of <tiles-dir> under 9.5 GB, the live file included).
@@ -28,13 +30,13 @@
 # Exit codes: 0 OK, 2 low disk, 3 high load, 4 locked, 5 build failed, 6 new file failed its
 # check (live untouched), 7 new file failed on the service (rolled back to the old file),
 # 8 rollback did not bring the service back (tiles down: needs a human), 9 leftover
-# norway.mbtiles.prev from an interrupted run (needs a human), 1 anything else.
+# norway.mbtiles.prev from an interrupted run (needs a human), 10 low memory, 1 anything else.
 #
 # Overrides for tests (infra/test-refresh-tiles.sh), not for production use: REFRESH_BUILD_CMD (the
 # builder; gets the tiles dir as $1 and must leave norway.mbtiles.new), TILES_CONTAINER (the martin
 # container, default gable-maps-tiles), REFRESH_RESTART_CMD (default: docker restart it),
 # TILES_HEALTH_URL (the host-side check, default http://127.0.0.1:8216/health; empty skips it),
-# REFRESH_MIN_BYTES and the ratios (check-mbtiles.py).
+# REFRESH_MEMINFO (the meminfo file, default /proc/meminfo), REFRESH_MIN_BYTES and the ratios (check-mbtiles.py).
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -75,6 +77,14 @@ fi
 read -r load1 _ < /proc/loadavg
 if awk -v l="$load1" -v m="$max_load" 'BEGIN { exit !(l >= m) }'; then
   fail "high load: 1-minute load average $load1, limit $max_load" 3
+fi
+
+meminfo="${REFRESH_MEMINFO:-/proc/meminfo}"
+min_mem_gb="${REFRESH_MIN_MEM_GB:-12}"
+mem_kb=$(awk '/^MemAvailable:/ { print $2 }' "$meminfo" 2>/dev/null || true)
+[[ "$mem_kb" =~ ^[0-9]+$ ]] || fail "low memory: no MemAvailable in $meminfo" 10
+if (( mem_kb < min_mem_gb * 1000 * 1000 * 1000 / 1024 )); then
+  fail "low memory: $(( mem_kb * 1024 / 1000000000 )) GB available, need $min_mem_gb GB (the build's 10 GB heap plus a margin)" 10
 fi
 
 # 2. The lock (build-tiles.sh takes the same one when run by hand).

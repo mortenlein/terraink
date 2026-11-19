@@ -16,10 +16,7 @@ directories, social) are terraink.app's and not ours.
    adressen»; staging GREEN with the screenshot). Not stored: after a reload the line is gone, and the
    published map carries no credit (a stored field and a migration would be needed).
 5. Done 2026-11-19: «-gt.», «-vn.», «-v.», «-pl.» joined to a street are spelled out (`JOINED_ABBREVIATIONS`), and the hit filter folds gata/gaten/gate, veien/vei, plassen/plass as Kartverket does; real fixtures per suffix.
-6. **Misspelled streets** (3 h): retry a zero-hit `sok` once with Kartverket's `fuzzy=true`
-   (openapi.json, 2026-11-08), and loosen `hitMatchesQuery` for that retry only (street within a
-   small edit distance, the number exact), so a near miss still never becomes a wrong pin;
-   fixtures from real misses, tests both ways.
+6. Done 2026-11-19: a `sok` with nothing left after the filter is retried once with `fuzzy=true` (`fuzzyHitMatchesQuery`: street within a length-scaled edit distance, number and place exact, two near streets give none); real fixtures both ways.
 7. **Rollback for the renderer image** (3 h): today `compose up --build` overwrites
    `gable-maps:latest` with no way back. Tag each build with its commit, keep current + previous,
    and a deploy script that starts the new image on a scratch port, proves one render, then

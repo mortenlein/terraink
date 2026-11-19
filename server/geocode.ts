@@ -19,6 +19,9 @@
  * sends "<address>, Norge" (gable app/src/components/edit/sections.tsx): the country is dropped.
  * A query without any number is answered with no hit, and a hit whose own street and number are
  * not in the query is dropped (geocode(), hitMatchesQuery): no answer is better than a wrong pin.
+ * When the exact ask leaves nothing, it is asked once more with fuzzy=true (a second call, spaced
+ * like the first), and only a near miss of the street with the exact number and place is kept
+ * (fuzzyHitMatchesQuery).
  * The answer keeps the shape Gable reads (gable app/src/lib/edit/geocode.ts firstHit):
  * { query, cached, results: [{ lat, lng, displayName, type }] }, plus `attribution`.
  * Coordinates are EUREF89 (EPSG:4258), within a metre of WGS84 in Norway.
@@ -107,8 +110,12 @@ export function kartverketQuery(normalised: string): string {
 }
 
 interface KartverketAddress {
+  adressenavn?: string;
   adressetekst?: string;
   adressetekstutenadressetilleggsnavn?: string;
+  adressetilleggsnavn?: string | null;
+  kommunenummer?: string;
+  kommunenavn?: string;
   postnummer?: string;
   poststed?: string;
   objtype?: string;
@@ -173,6 +180,75 @@ export function foldEnding(word: string): string {
   return word.replace(/gat(?:a|en)$/u, "gate").replace(/veien$/u, "vei").replace(/plassen$/u, "plass");
 }
 
+/** Edits allowed between a street word and the word asked: none under 5 letters, 1 under 9, else 2. */
+function maxEdits(length: number): number {
+  return length >= 9 ? 2 : length >= 5 ? 1 : 0;
+}
+
+/** Optimal string alignment distance (a swap of two neighbours is one edit). */
+export function editDistance(a: string, b: string): number {
+  const s = Array.from(a);
+  const t = Array.from(b);
+  const d = Array.from({ length: s.length + 1 }, (_, i) => Array.from({ length: t.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
+  for (let i = 1; i <= s.length; i++) {
+    for (let j = 1; j <= t.length; j++) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && s[i - 1] === t[j - 2] && s[i - 2] === t[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[s.length][t.length];
+}
+
+const hasDigit = (w: string) => /\d/.test(w);
+
+function nearWord(own: string, asked: string): boolean {
+  if (hasDigit(own) || hasDigit(asked)) return false;
+  const allowed = maxEdits(Math.min(Array.from(own).length, Array.from(asked).length));
+  if (!allowed) return false;
+  return Math.min(editDistance(own, asked), editDistance(foldEnding(own), foldEnding(asked))) <= allowed;
+}
+
+/**
+ * hitMatchesQuery for the fuzzy retry only. Under fuzzy=true Kartverket no longer guarantees that
+ * every query word is in the row (measured 2026-11-19: "kirkegaten 3 arndal" answers Kirkegaten 3,
+ * ARENDAL; "kirkevein 3 arendal" answers Flosta Kirkevei 3), so this checks all three parts itself:
+ * - every word of the hit's street is in the query, a street word within maxEdits of one;
+ * - every number (house number, letter, postcode) is exact;
+ * - every query word left over is exactly in the hit's place (postcode, post town, kommune,
+ *   additional name). A misspelled town gives no pin: only the street is loosened.
+ */
+export function fuzzyHitMatchesQuery(row: KartverketAddress, sok: string): boolean {
+  const own = addressWords(row.adressetekstutenadressetilleggsnavn ?? row.adressetekst ?? "");
+  if (!own.length) return false;
+  const left = addressWords(sok);
+  const unmatched: string[] = [];
+  // Exact words first, so a near match never takes the word another street word needs exactly.
+  for (const w of own) {
+    const i = left.findIndex((a) => foldEnding(a) === foldEnding(w));
+    if (i < 0) unmatched.push(w);
+    else left.splice(i, 1);
+  }
+  for (const w of unmatched) {
+    const i = left.findIndex((a) => nearWord(w, a));
+    if (i < 0) return false;
+    left.splice(i, 1);
+  }
+  const place = new Set(
+    addressWords([row.adressetilleggsnavn, row.postnummer, row.poststed, row.kommunenavn].filter(Boolean).join(" ")),
+  );
+  return left.every((w) => place.has(w));
+}
+
+/** One street: its name (endings folded) in its kommune. */
+function streetKey(row: KartverketAddress): string {
+  const name = addressWords(row.adressenavn ?? row.adressetekstutenadressetilleggsnavn ?? row.adressetekst ?? "")
+    .filter((w) => !hasDigit(w))
+    .map(foldEnding)
+    .join(" ");
+  return `${name}|${row.kommunenummer ?? row.kommunenavn ?? ""}`;
+}
+
 /** Hits asked for before the filter, so a right second hit survives a wrong first one. */
 const SOK_PAGE = 10;
 
@@ -198,16 +274,22 @@ function throttled<T>(minIntervalMs: number, job: () => Promise<T>): Promise<T> 
  * The provider and the answer's rules are in the key: the cache volume still holds 30 days of
  * Nominatim answers from before 2026-11-08, and Kartverket answers cached before the hit filter
  * (v2, hitMatchesQuery) the same day; neither may be served. v3 (2026-11-19, foldEnding): under v2
- * "kirkegata 3 arendal" was cached empty although Kirkegaten 3 is the answer.
+ * "kirkegata 3 arendal" was cached empty although Kirkegaten 3 is the answer. v4 (2026-11-19, the
+ * fuzzy retry): a cached answer is now the outcome of both passes, so a v3 empty (exact only) must
+ * not stand in for one. Exact and fuzzy share the key on purpose: the cache holds the final
+ * answer to the owner's query, and a separate fuzzy entry would buy nothing.
  */
 function cacheFile(dir: string, key: string): string {
-  return path.join(dir, `${createHash("sha256").update(`kartverket-v3|${key}`).digest("hex")}.json`);
+  return path.join(dir, `${createHash("sha256").update(`kartverket-v4|${key}`).digest("hex")}.json`);
 }
+
+/** One upstream call; each goes through the throttle on its own, a retry included. */
+type Call = (url: URL) => Promise<unknown>;
 
 async function cachedAsk(
   key: string,
   deps: GeocodeDeps,
-  ask: (fetchImpl: typeof fetch, base: string) => Promise<GeocodeResult[]>,
+  ask: (call: Call, base: string) => Promise<GeocodeResult[]>,
 ): Promise<{ cached: boolean; results: GeocodeResult[] }> {
   const dir = deps.cacheDir ?? config.geocodeCacheDir;
   const file = cacheFile(dir, key);
@@ -219,7 +301,8 @@ async function cachedAsk(
   }
   const fetchImpl = deps.fetchImpl ?? fetch;
   const base = (deps.baseUrl ?? config.geocoderUrl).replace(/\/+$/, "");
-  const results = await throttled(deps.minIntervalMs ?? config.geocodeMinIntervalMs, () => ask(fetchImpl, base));
+  const minIntervalMs = deps.minIntervalMs ?? config.geocodeMinIntervalMs;
+  const results = await ask((url) => throttled(minIntervalMs, () => getJson(fetchImpl, url)), base);
   await mkdir(dir, { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   await writeFile(tmp, JSON.stringify({ at: Date.now(), key, results }));
@@ -252,16 +335,30 @@ export async function geocode(q: string, limit: number, deps: GeocodeDeps = {}):
   // An address has a number (house or postcode). Without one, Kartverket answers with every
   // address in the place, the first a random cadastral one: a wrong pin nobody would notice.
   if (!/\d/.test(sok)) return { query: sok, cached: false, results: [], attribution: GEOCODE_ATTRIBUTION };
-  const answer = await cachedAsk(`sok|${sok}|${limit}`, deps, async (fetchImpl, base) => {
-    const url = new URL(`${base}/sok`);
-    url.searchParams.set("sok", sok);
-    url.searchParams.set("treffPerSide", String(Math.max(limit, SOK_PAGE)));
-    url.searchParams.set("utkoordsys", "4258");
-    return addressRows(await getJson(fetchImpl, url))
-      .filter((row) => hitMatchesQuery(row, sok))
-      .map(toResult)
-      .filter((r): r is GeocodeResult => r !== null)
-      .slice(0, limit);
+  const answer = await cachedAsk(`sok|${sok}|${limit}`, deps, async (call, base) => {
+    const sokUrl = (fuzzy: boolean) => {
+      const url = new URL(`${base}/sok`);
+      url.searchParams.set("sok", sok);
+      url.searchParams.set("treffPerSide", String(Math.max(limit, SOK_PAGE)));
+      url.searchParams.set("utkoordsys", "4258");
+      if (fuzzy) url.searchParams.set("fuzzy", "true");
+      return url;
+    };
+    const toResults = (rows: KartverketAddress[]) =>
+      rows
+        .map(toResult)
+        .filter((r): r is GeocodeResult => r !== null)
+        .slice(0, limit);
+    const exact = addressRows(await call(sokUrl(false))).filter((row) => hitMatchesQuery(row, sok));
+    // Kartverket: fuzzy "er ikke kompatibelt med bruk av wildcard" (openapi.json, 2026-11-08).
+    if (exact.length || sok.includes("*")) return toResults(exact);
+    // Nothing the exact filter keeps (no raw hit, or only wrong ones such as "olsens" for "olsen"):
+    // ask once more with fuzzy=true and keep only near misses of this street with this number.
+    const near = addressRows(await call(sokUrl(true))).filter((row) => fuzzyHitMatchesQuery(row, sok));
+    // Two different streets near the one asked: Gable pins the first, and Kartverket's ranking must
+    // not choose between them.
+    if (new Set(near.map(streetKey)).size > 1) return [];
+    return toResults(near);
   });
   return { query: sok, ...answer, attribution: GEOCODE_ATTRIBUTION };
 }
@@ -274,7 +371,7 @@ export async function reverseGeocode(lat: number, lng: number, deps: GeocodeDeps
   // ~1 m: nearer points share a cache entry.
   const rl = lat.toFixed(5);
   const rg = lng.toFixed(5);
-  const answer = await cachedAsk(`punktsok|${rl}|${rg}|${radius}`, deps, async (fetchImpl, base) => {
+  const answer = await cachedAsk(`punktsok|${rl}|${rg}|${radius}`, deps, async (call, base) => {
     const url = new URL(`${base}/punktsok`);
     url.searchParams.set("lat", rl);
     url.searchParams.set("lon", rg);
@@ -282,7 +379,7 @@ export async function reverseGeocode(lat: number, lng: number, deps: GeocodeDeps
     url.searchParams.set("treffPerSide", "1");
     url.searchParams.set("koordsys", "4258");
     url.searchParams.set("utkoordsys", "4258");
-    return parseAddresses(await getJson(fetchImpl, url));
+    return parseAddresses(await call(url));
   });
   return { query: `${rl},${rg}`, ...answer, attribution: GEOCODE_ATTRIBUTION };
 }

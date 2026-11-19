@@ -26,15 +26,20 @@ our own reading.
 - One address lookup (`sok`) or nearest-address lookup (`punktsok`) per owner action in Gable's
   editor, never a crawl. Calls are serialised and spaced at least 250 ms apart
   (`server/config.ts:39`, `geocodeMinIntervalMs: 250`; `server/geocode.ts` `throttled`).
+- A `sok` that leaves no hit after our filter is asked once more with `fuzzy=true` (since
+  2026-11-19, misspelled streets): **a miss costs two calls**, each through the same throttle, so
+  still 250 ms apart. A hit is never retried, and a wildcard query is not (fuzzy «Ikke kompatibelt
+  med bruk av wildcard», OpenAPI `fuzzy`). Same base URL as the first call.
 - Answers are cached on disk for 30 days, keyed by the normalised query
   (`server/config.ts:37`, `geocodeCacheTtlMs`; `server/geocode.ts` `cachedAsk`).
 - Norwegian addresses only: a trailing «Norge/Norway/Noreg» is dropped (`server/geocode.ts:63`),
   a query with no number gets no lookup at all, and a hit whose street and number are not in the
-  query is dropped.
+  query is dropped (on the fuzzy retry: a street within a small edit distance, the number and
+  place exact).
 - Every answer carries `© Kartverket (CC BY 4.0)` (`server/geocode.ts:46`, `GEOCODE_ATTRIBUTION`).
   Gable shows it to the owner under the address field when the pin came from the geocoder (2026-11-19, dev 54d3a51); it is not stored, so it is gone after a reload, and the published map carries none (ROADMAP.md).
 
-**Judgement:** at that volume (one request per owner edit, under 4 a second at the very worst,
+**Judgement:** at that volume (one request per owner edit, two on a miss, under 4 a second at the very worst,
 far fewer after the cache) we are well inside the declared capacity of 10 simultaneous requests
 and nowhere near «complete datasets», which is what the terms warn against. A mass job (geocoding
 every prospect from the Business Register, say) is a different use: that is what the download

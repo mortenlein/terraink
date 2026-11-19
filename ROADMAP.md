@@ -15,9 +15,7 @@ directories, social) are terraink.app's and not ours.
    editor shows «Adressedata: © Kartverket (CC BY 4.0)» under the address field after «Hent fra
    adressen»; staging GREEN with the screenshot). Not stored: after a reload the line is gone, and the
    published map carries no credit (a stored field and a migration would be needed).
-5. **Joined abbreviations in addresses** (1.5 h): «Kirkegt. 3» and the like («-gt.», «-vn.», «-v.»,
-   «-pl.») spelled out in `kartverketQuery` as «gt.» already is; a suffix table, fixtures and
-   tests for each.
+5. Done 2026-11-19: «-gt.», «-vn.», «-v.», «-pl.» joined to a street are spelled out (`JOINED_ABBREVIATIONS`), and the hit filter folds gata/gaten/gate, veien/vei, plassen/plass as Kartverket does; real fixtures per suffix.
 6. **Misspelled streets** (3 h): retry a zero-hit `sok` once with Kartverket's `fuzzy=true`
    (openapi.json, 2026-11-08), and loosen `hitMatchesQuery` for that retry only (street within a
    small edit distance, the number exact), so a near miss still never becomes a wrong pin;

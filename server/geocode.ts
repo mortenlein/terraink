@@ -63,13 +63,44 @@ export interface GeocodeDeps {
 const COUNTRY_WORDS = new Set(["norge", "norway", "noreg"]);
 
 /**
- * The normalised query as Kartverket's `sok` wants it: no trailing country word, and a standalone
+ * Abbreviations written joined to the street name ("kirkegt.", "drammensvn."), spelled out.
+ * Measured 2026-11-19: "kirkegt. 3 arendal" and "kirkegt 3 arendal" find nothing, "kirkegata 3
+ * arendal" finds Kirkegaten 3. Kartverket's sok treats gata/gaten/gate, vei/veien and
+ * plass/plassen as one word, so one spelled-out form per suffix finds them all. It does NOT treat
+ * vei and veg as one ("svinesundsvegen" finds nothing where "svinesundsveien" finds Gamle
+ * Svinesundsvei): "-v."/"-vn." are spelled out in bokmål, and a nynorsk "-vegen" street is left to
+ * the fuzzy retry.
+ * Only with the dot, and only after a stem of at least two letters: without the dot, "nyhavn" and
+ * "navn" end in "vn", "langt" in "gt"; a one-letter stem is "rv."/"fv." (riksvei, fylkesvei) or
+ * "v." for "ved".
+ */
+const JOINED_ABBREVIATIONS: ReadonlyArray<readonly [string, string]> = [
+  ["gt.", "gata"],
+  ["vn.", "veien"],
+  ["v.", "veien"],
+  ["pl.", "plass"],
+];
+
+function spellOutJoined(word: string): string {
+  for (const [suffix, full] of JOINED_ABBREVIATIONS) {
+    if (!word.endsWith(suffix)) continue;
+    const stem = word.slice(0, -suffix.length);
+    return /^\p{L}{2,}$/u.test(stem) ? stem + full : word;
+  }
+  return word;
+}
+
+/**
+ * The normalised query as Kartverket's `sok` wants it: no trailing country word, a standalone
  * "gt."/"gt" spelled out as "gate" (the register has no abbreviations; "karl johans gt 1 oslo" finds
- * nothing, 2026-11-08), and a house letter joined to its number. Joined abbreviations ("kirkegt.")
- * are not guessed at.
+ * nothing, 2026-11-08), a joined one ("kirkegt.", JOINED_ABBREVIATIONS) spelled out, and a house
+ * letter joined to its number.
  */
 export function kartverketQuery(normalised: string): string {
-  const words = normalised.split(" ").filter(Boolean).map((w) => (w === "gt" || w === "gt." ? "gate" : w));
+  const words = normalised
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => (w === "gt" || w === "gt." ? "gate" : spellOutJoined(w)));
   while (words.length > 1 && COUNTRY_WORDS.has(words[words.length - 1].replace(/\.$/, ""))) words.pop();
   // "2 b" -> "2b": the register's house letter only matches joined to its number (2026-11-08).
   return words.join(" ").replace(/(^| )(\d+) ([a-zæøå])(?= |$)/gu, "$1$2$3");
@@ -125,10 +156,21 @@ export function addressWords(text: string): string[] {
  * that fails this is not what was asked for, and a wrong pin is worse than none.
  */
 export function hitMatchesQuery(row: KartverketAddress, sok: string): boolean {
-  const own = addressWords(row.adressetekstutenadressetilleggsnavn ?? row.adressetekst ?? "");
+  const own = addressWords(row.adressetekstutenadressetilleggsnavn ?? row.adressetekst ?? "").map(foldEnding);
   if (!own.length) return false;
-  const asked = new Set(addressWords(sok));
+  const asked = new Set(addressWords(sok).map(foldEnding));
   return own.every((w) => asked.has(w));
+}
+
+/**
+ * The endings Kartverket's sok treats as one word, folded to one form (measured 2026-11-19:
+ * "kirkegata", "kirkegate" and "kirkegaten 3 arendal" all answer Kirkegaten 3; "gamle
+ * svinesundsveien 112" answers Gamle Svinesundsvei 112; "rådhusplass 1 oslo" answers
+ * Rådhusplassen 1). Without it the filter drops the right hit whenever the owner writes the other
+ * form. vei/veg are not folded: Kartverket does not treat them as one either.
+ */
+export function foldEnding(word: string): string {
+  return word.replace(/gat(?:a|en)$/u, "gate").replace(/veien$/u, "vei").replace(/plassen$/u, "plass");
 }
 
 /** Hits asked for before the filter, so a right second hit survives a wrong first one. */
@@ -155,10 +197,11 @@ function throttled<T>(minIntervalMs: number, job: () => Promise<T>): Promise<T> 
 /**
  * The provider and the answer's rules are in the key: the cache volume still holds 30 days of
  * Nominatim answers from before 2026-11-08, and Kartverket answers cached before the hit filter
- * (v2, hitMatchesQuery) the same day; neither may be served.
+ * (v2, hitMatchesQuery) the same day; neither may be served. v3 (2026-11-19, foldEnding): under v2
+ * "kirkegata 3 arendal" was cached empty although Kirkegaten 3 is the answer.
  */
 function cacheFile(dir: string, key: string): string {
-  return path.join(dir, `${createHash("sha256").update(`kartverket-v2|${key}`).digest("hex")}.json`);
+  return path.join(dir, `${createHash("sha256").update(`kartverket-v3|${key}`).digest("hex")}.json`);
 }
 
 async function cachedAsk(

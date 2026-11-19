@@ -44,6 +44,75 @@ describe("kartverketQuery", () => {
     expect(kartverketQuery("storgata 2 b brevik")).toBe("storgata 2b brevik");
     expect(kartverketQuery("storgata 2b brevik")).toBe("storgata 2b brevik");
   });
+  test("spells out a joined abbreviation, one per suffix (Kartverket finds 'kirkegt. 3 arendal' as nothing, 2026-11-19)", () => {
+    expect(kartverketQuery("kirkegt. 3 arendal")).toBe("kirkegata 3 arendal");
+    expect(kartverketQuery("drammensvn. 175 oslo")).toBe("drammensveien 175 oslo");
+    expect(kartverketQuery("gamle svinesundsv. 112")).toBe("gamle svinesundsveien 112");
+    expect(kartverketQuery("rådhuspl. 1 oslo")).toBe("rådhusplass 1 oslo");
+    expect(kartverketQuery("nygt. 4 lillestrøm")).toBe("nygata 4 lillestrøm");
+  });
+  test("leaves words that only end in those letters alone", () => {
+    // No dot, no abbreviation: "nyhavn" and "navn" end in "vn", "langt" in "gt", "kapl" in "pl".
+    expect(kartverketQuery("nyhavn 3 trondheim")).toBe("nyhavn 3 trondheim");
+    expect(kartverketQuery("kirkegt 3 arendal")).toBe("kirkegt 3 arendal");
+    expect(kartverketQuery("langt 1")).toBe("langt 1");
+    expect(kartverketQuery("kapl 2")).toBe("kapl 2");
+    // "gt"/"pl"/"vn" inside a word is not a suffix.
+    expect(kartverketQuery("engtjernveien 5")).toBe("engtjernveien 5");
+    expect(kartverketQuery("splitvn 5")).toBe("splitvn 5");
+    expect(kartverketQuery("gtx 1")).toBe("gtx 1");
+    // A one-letter stem is a road class or a word, not a street: riksvei, fylkesvei, "v." for "ved".
+    expect(kartverketQuery("rv. 4 gran")).toBe("rv. 4 gran");
+    expect(kartverketQuery("fv. 33 1")).toBe("fv. 33 1");
+    expect(kartverketQuery("hotell v. torget 2")).toBe("hotell v. torget 2");
+    expect(kartverketQuery("k. 3")).toBe("k. 3");
+    // A number or a dot in the stem is not a street name.
+    expect(kartverketQuery("st.pl. 1")).toBe("st.pl. 1");
+    expect(kartverketQuery("e6v. 1")).toBe("e6v. 1");
+  });
+});
+
+describe("joined abbreviations against Kartverket", () => {
+  // Each fixture is Kartverket's real answer (2026-11-19) to exactly the string the code sends;
+  // the test checks the outgoing sok against the fixture's own metadata.sokeStreng, so it cannot
+  // pass on an answer to a query that was never asked.
+  for (const [asked, name, expected] of [
+    ["Kirkegt. 3, Arendal, Norge", "kartverket-sok-kirkegata-3-arendal.json", "Kirkegaten 3, 4836 ARENDAL"],
+    ["Drammensvn. 175, Oslo", "kartverket-sok-drammensveien-175-oslo.json", "Drammensveien 175, 0277 OSLO"],
+    ["Gamle Svinesundsv. 112", "kartverket-sok-gamle-svinesundsveien-112.json", "Gamle Svinesundsvei 112, 1789 BERG I ØSTFOLD"],
+    ["Rådhuspl. 1, Oslo", "kartverket-sok-radhusplass-1-oslo.json", "Rådhusplassen 1, 0037 OSLO"],
+  ]) {
+    test(`${asked} -> ${expected}`, async () => {
+      const body = fixture(name);
+      const { calls, fetchImpl } = recorder(body);
+      const r = await geocode(asked, 1, { fetchImpl, baseUrl: BASE, cacheDir: freshCache(), minIntervalMs: 0 });
+      const recorded = new URLSearchParams(JSON.parse(body).metadata.sokeStreng).get("sok");
+      expect(calls[0].searchParams.get("sok")).toBe(recorded);
+      expect(r.results.map((x) => x.displayName)).toEqual([expected]);
+    });
+  }
+
+  test("gata/gaten/gate, veien/vei and plass/plassen are one word, as Kartverket's sok treats them", async () => {
+    // Measured 2026-11-19: "kirkegata", "kirkegate" and "kirkegaten 3 arendal" all answer Kirkegaten 3;
+    // "gamle svinesundsveien 112" answers Gamle Svinesundsvei 112; "rådhusplass" answers Rådhusplassen.
+    for (const [asked, name, expected] of [
+      ["Kirkegata 3, Arendal", "kartverket-sok-kirkegata-3-arendal.json", "Kirkegaten 3, 4836 ARENDAL"],
+      ["Gamle Svinesundsveien 112", "kartverket-sok-gamle-svinesundsveien-112.json", "Gamle Svinesundsvei 112, 1789 BERG I ØSTFOLD"],
+      ["Rådhusplass 1, Oslo", "kartverket-sok-radhusplass-1-oslo.json", "Rådhusplassen 1, 0037 OSLO"],
+    ]) {
+      const { fetchImpl } = recorder(fixture(name));
+      const r = await geocode(asked, 1, { fetchImpl, baseUrl: BASE, cacheDir: freshCache(), minIntervalMs: 0 });
+      expect(r.results.map((x) => x.displayName)).toEqual([expected]);
+    }
+  });
+
+  test("the fold is of the ending only: another street or number is still dropped", async () => {
+    const { fetchImpl } = recorder(fixture("kartverket-sok-kirkegata-3-arendal.json"));
+    for (const asked of ["Kirkeveien 3, Arendal", "Kirkegata 33, Arendal", "Storkirkegata 3, Arendal"]) {
+      const r = await geocode(asked, 1, { fetchImpl, baseUrl: BASE, cacheDir: freshCache(), minIntervalMs: 0 });
+      expect(r.results).toEqual([]);
+    }
+  });
 });
 
 describe("geocode", () => {
